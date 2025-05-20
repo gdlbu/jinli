@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>3D 骨骼动画锦鲤</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #faf8f2; }
+    canvas { display: block; }
+    #loading {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      background: #faf8f2; font-family: sans-serif;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">加载中…</div>
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js';
+    import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/controls/OrbitControls.js';
+
+    let scene, camera, renderer, clock, mixer, swimAction, fleeAction;
+    init();
+    animate();
+
+    function init() {
+      // 场景 & 时钟
+      scene = new THREE.Scene();
+      clock = new THREE.Clock();
+
+      // 相机
+      camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 1000);
+      camera.position.set(0, 5, 10);
+
+      // 渲染器
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      document.body.appendChild(renderer.domElement);
+
+      // 环境光 + 平行光
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.0));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      // 地面反光板（可选）
+      const groundMat = new THREE.MeshPhongMaterial({ color: 0xe0dfd5, depthWrite: false });
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      scene.add(ground);
+
+      // 轨道控制器（调试用）
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.maxPolarAngle = Math.PI / 2 - 0.1;
+
+      // 加载 GLTF 模型
+      const loader = new GLTFLoader();
+      loader.load('koi.glb', gltf => {
+        const model = gltf.scene;
+        model.scale.set(2, 2, 2);  // 根据模型大小适当缩放
+        scene.add(model);
+
+        // 骨骼动画
+        mixer = new THREE.AnimationMixer(model);
+        const clips = gltf.animations;
+        swimAction = mixer.clipAction(clips.find(c => c.name.toLowerCase().includes('swim')));
+        fleeAction = mixer.clipAction(clips.find(c => c.name.toLowerCase().includes('flee')));
+        swimAction.play();
+
+        // 去掉加载提示
+        document.getElementById('loading').style.display = 'none';
+
+        // 鼠标 / 触屏触发逃跑
+        window.addEventListener('pointerdown', () => {
+          fleeAction.reset().play();
+          swimAction.stop();
+          fleeAction.clampWhenFinished = true;
+          fleeAction.loop = THREE.LoopOnce;
+          // 播放完逃跑动作后，切回游动
+          mixer.addEventListener('finished', e => {
+            fleeAction.stop();
+            swimAction.reset().play();
+          });
+        });
+      },
+      xhr => {
+        // 可选：显示进度
+        const pct = (xhr.loaded / xhr.total * 100).toFixed(0);
+        document.getElementById('loading').innerText = `加载中… ${pct}%`;
+      },
+      err => {
+        console.error(err);
+        document.getElementById('loading').innerText = '模型加载失败';
+      });
+
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    function onWindowResize() {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      if (mixer) mixer.update(delta);
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>
