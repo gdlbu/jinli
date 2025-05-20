@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池（碧绿湖水 & 蓝天白云）</title>
+  <title>3D 锦鲤池（浅碧湖水 & 全身可见）</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
     #loading {
@@ -26,7 +26,6 @@
 <body>
   <div id="loading">加载中… 0%</div>
   <canvas id="canvas"></canvas>
-
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -35,7 +34,7 @@
     import { Sky }         from 'three/examples/jsm/objects/Sky.js';
 
     let scene, camera, renderer, clock, mixer;
-    let water, sky;
+    let water;
     const loadingDiv = document.getElementById('loading');
     const canvas     = document.getElementById('canvas');
 
@@ -47,7 +46,7 @@
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 1000);
-      camera.position.set(0, 5, 15);
+      camera.position.set(0, 8, 20);
 
       // 渲染器 + 阴影
       renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -58,31 +57,32 @@
       renderer.setClearColor(0x87CEEB);
 
       // 天空
-      sky = new Sky();
+      const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
-      const skyUniforms = sky.material.uniforms;
-      skyUniforms['turbidity'].value = 10;
-      skyUniforms['rayleigh'].value  = 2;
-      skyUniforms['mieCoefficient'].value  = 0.005;
-      skyUniforms['mieDirectionalG'].value = 0.8;
-      // 太阳位置
       const sun = new THREE.Vector3();
-      // 设置太阳在天空中稍偏东南的高位
       sun.setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
-      skyUniforms['sunPosition'].value.copy(sun);
+      sky.material.uniforms['sunPosition'].value.copy(sun);
 
       // 全局灯光
-      const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
-      scene.add(hemi);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 1);
       dirLight.position.copy(sun).multiplyScalar(50);
       dirLight.castShadow = true;
-      dirLight.shadow.mapSize.set(2048,2048);
+      dirLight.shadow.mapSize.set(2048, 2048);
       scene.add(dirLight);
 
-      // 碧绿透明的湖水
-      const waterGeo = new THREE.PlaneGeometry(1000, 1000);
+      // 底部沙地
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(200,200),
+        new THREE.MeshStandardMaterial({ color: 0xDDCBA0 })
+      );
+      ground.rotation.x = -Math.PI/2;
+      ground.position.y = 0;
+      scene.add(ground);
+
+      // 碧绿浅水
+      const waterGeo = new THREE.PlaneGeometry(200, 200);
       const waterNormals = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg',
         tex => { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; }
@@ -93,30 +93,22 @@
         waterNormals: waterNormals,
         sunDirection: sun.clone().normalize(),
         sunColor: 0xffffff,
-        waterColor: 0x00a86b,   // 碧绿色
-        distortionScale: 3.0,
-        fog: scene.fog !== undefined
+        waterColor: 0x1EB980, // 浅碧绿
+        distortionScale: 1.0, // 较小扰动
+        fog: false
       });
       water.rotation.x = -Math.PI/2;
+      water.position.y = 1; // 水面高度
       water.material.transparent = true;
-      water.material.opacity     = 0.8;
-      water.receiveShadow = true;
+      water.material.opacity = 0.6; // 高透明度
       scene.add(water);
 
-      // 调试控制器
+      // 水面下能见度：鱼全身可见
+
+      // 控制器
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.maxPolarAngle = Math.PI/2 - 0.1;
-
-      // 地面影子接收（在水面之下放隐形平面接收）
-      const ground = new THREE.Mesh(
-        new THREE.PlaneGeometry(1000,1000),
-        new THREE.ShadowMaterial({ opacity: 0.3 })
-      );
-      ground.rotation.x = -Math.PI/2;
-      ground.position.y = -0.01;
-      ground.receiveShadow = true;
-      scene.add(ground);
 
       // 加载锦鲤模型
       const loader = new GLTFLoader();
@@ -126,25 +118,26 @@
         gltf => {
           loadingDiv.style.display = 'none';
           const model = gltf.scene;
-          // 鱼体再放大 2 倍（原 3 倍 -> 6 倍）
-          model.scale.set(6, 6, 6);
+          // 鱼体放大到 6 倍基础上再放两倍 = 12 倍
+          model.scale.set(12, 12, 12);
+          model.position.y = 1.5; // 提升鱼体到水面下方
           model.traverse(n => {
-            if (n.isMesh) { n.castShadow = true; n.receiveShadow = false; }
+            if (n.isMesh) {
+              n.castShadow = true;
+              n.receiveShadow = false;
+            }
           });
           scene.add(model);
 
           mixer = new THREE.AnimationMixer(model);
           console.log('动画片段：', gltf.animations.map(a=>a.name));
-          gltf.animations.forEach(clip => {
-            const action = mixer.clipAction(clip);
-            action.play();
-          });
+          gltf.animations.forEach(clip => mixer.clipAction(clip).play());
 
-          // 点击触发 Flee
+          // 点击逃跑
           window.addEventListener('pointerdown', () => {
-            const clip = gltf.animations.find(c=>/flee/i.test(c.name));
-            if (clip) {
-              const action = mixer.clipAction(clip);
+            const flee = gltf.animations.find(c=>/flee/i.test(c.name));
+            if (flee) {
+              const action = mixer.clipAction(flee);
               action.reset().play();
               action.clampWhenFinished = true;
               action.loop = THREE.LoopOnce;
@@ -156,7 +149,7 @@
           loadingDiv.innerText = `加载中… ${pct}%`;
         },
         err => {
-          console.error('模型加载错误：', err);
+          console.error('加载错误：', err);
           loadingDiv.innerText = `🚨 加载失败：${err.message||err}`;
         }
       );
