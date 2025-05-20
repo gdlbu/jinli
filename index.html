@@ -1,19 +1,20 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>极致真实·3D 锦鲤池（HDR 修正版）</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>极致真实·3D 锦鲤池（无 HDR 版）</title>
   <style>
-    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; }
+    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
     #loading {
       position:fixed; top:0; left:0; right:0; bottom:0;
       display:flex; align-items:center; justify-content:center;
       font-family:sans-serif; font-size:1.2em; color:#333;
-      background:#faf8f2; z-index:100;
+      background:#87CEEB; z-index:100;
     }
     canvas { display:block }
   </style>
+  <!-- Import Map：映射 bare specifier -->
   <script type="importmap">
   {
     "imports": {
@@ -24,14 +25,15 @@
   </script>
 </head>
 <body>
-  <div id="loading">加载环境…</div>
+  <div id="loading">加载场景…</div>
   <canvas id="canvas"></canvas>
+
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
     import { GLTFLoader }   from 'three/examples/jsm/loaders/GLTFLoader.js';
-    import { RGBELoader }   from 'three/examples/jsm/loaders/RGBELoader.js';
     import { Water }        from 'three/examples/jsm/objects/Water.js';
+    import { Sky }          from 'three/examples/jsm/objects/Sky.js';
 
     let scene, camera, renderer, clock, mixer, water;
     const loading = document.getElementById('loading');
@@ -41,72 +43,73 @@
     animate();
 
     function init() {
+      // —— 场景 & 相机 & 时钟 —— 
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 2000);
       camera.position.set(0, 8, 20);
 
-      renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+      // —— 渲染器 —— 
+      renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false });
       renderer.setSize(innerWidth, innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+      renderer.setClearColor(0x87CEEB);
 
-      // 环境贴图：使用 threejs.org 上的 HDR 资源
-      const pmrem = new THREE.PMREMGenerator(renderer);
-      new RGBELoader()
-        .setDataType(THREE.UnsignedByteType)
-        .load(
-          'https://threejs.org/examples/textures/equirectangular/royal_esplanade_1k.hdr',
-          hdr => {
-            const envMap = pmrem.fromEquirectangular(hdr).texture;
-            scene.environment = envMap;
-            scene.background  = envMap;
-            hdr.dispose();
-            pmrem.dispose();
-            loading.innerText = '加载水面…';
-            initWater();
-            loading.innerText = '加载锦鲤…';
-            initKoi();
-          },
-          undefined,
-          err => {
-            console.error('HDR 加载失败', err);
-            loading.innerText = '⚠️ HDR 加载失败';
-          }
-        );
+      // —— 天空效果 —— 
+      const sky = new Sky();
+      sky.scale.setScalar(10000);
+      scene.add(sky);
+      const sun = new THREE.Vector3();
+      sun.setFromSphericalCoords(1, Math.PI*0.4, Math.PI*0.25);
+      sky.material.uniforms['sunPosition'].value.copy(sun);
 
-      window.addEventListener('resize', onResize);
-    }
+      // —— 光照 —— 
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.6));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+      dirLight.position.copy(sun).multiplyScalar(50);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.set(2048,2048);
+      scene.add(dirLight);
 
-    function initWater() {
-      const geo = new THREE.PlaneGeometry(200,200);
-      const normals = new THREE.TextureLoader().load(
+      // —— 底部沙地，用来接阴影 —— 
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(200,200),
+        new THREE.ShadowMaterial({ opacity: 0.2 })
+      );
+      ground.rotation.x = -Math.PI/2;
+      ground.position.y = -0.1;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // —— 水面 —— 
+      const waterGeo = new THREE.PlaneGeometry(200,200);
+      const waterNormals = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg',
         tex => tex.wrapS = tex.wrapT = THREE.RepeatWrapping
       );
-      water = new Water(geo, {
-        textureWidth: 512,
-        textureHeight: 512,
-        waterNormals: normals,
-        sunDirection: new THREE.Vector3(0.3,1,0.3).normalize(),
+      water = new Water(waterGeo, {
+        textureWidth: 512, textureHeight: 512,
+        waterNormals,
+        sunDirection: sun.clone().normalize(),
         sunColor: 0xffffff,
         waterColor: 0x1EB980,
-        distortionScale: 1.5,
+        distortionScale: 1.0,
         fog: false
       });
       water.rotation.x = -Math.PI/2;
       water.position.y = 0;
       scene.add(water);
 
-      // 调试控制
+      // —— 轨道控制（可删） —— 
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.maxPolarAngle = Math.PI/2 - 0.1;
-    }
 
-    function initKoi() {
-      new THREE.GLTFLoader().load(
+      // —— 加载锦鲤模型 —— 
+      const loader = new GLTFLoader();
+      loader.load(
         `${window.location.origin}/koi.glb`,
         gltf => {
           loading.style.display = 'none';
@@ -116,14 +119,16 @@
           model.traverse(n=> n.isMesh && (n.castShadow=true));
           scene.add(model);
 
+          // —— 播放所有自带动画 —— 
           mixer = new THREE.AnimationMixer(model);
           console.log('动画片段：', gltf.animations.map(a=>a.name));
           gltf.animations.forEach(clip => mixer.clipAction(clip).play());
 
-          window.addEventListener('pointerdown', ()=>{
-            const clip = gltf.animations.find(c=>/flee/i.test(c.name));
-            if (clip) {
-              const action = mixer.clipAction(clip);
+          // —— 点击逃跑 —— 
+          window.addEventListener('pointerdown', () => {
+            const fleeClip = gltf.animations.find(c=>/flee/i.test(c.name));
+            if (fleeClip) {
+              const action = mixer.clipAction(fleeClip);
               action.reset().play();
               action.clampWhenFinished = true;
               action.loop = THREE.LoopOnce;
@@ -139,6 +144,8 @@
           loading.innerText = '⚠️ 锦鲤加载失败';
         }
       );
+
+      window.addEventListener('resize', onResize);
     }
 
     function onResize() {
@@ -151,7 +158,7 @@
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
       if (mixer) mixer.update(dt);
-      if (water) water.material.uniforms['time'].value += dt;
+      water.material.uniforms['time'].value += dt;
       renderer.render(scene, camera);
     }
   </script>
