@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>极致真实·3D 锦鲤池</title>
+  <title>极致真实·3D 锦鲤池（HDR 修正版）</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; }
     #loading {
@@ -14,8 +14,6 @@
     }
     canvas { display:block }
   </style>
-
-  <!-- Import Map：映射 bare specifier 到 CDN -->
   <script type="importmap">
   {
     "imports": {
@@ -28,7 +26,6 @@
 <body>
   <div id="loading">加载环境…</div>
   <canvas id="canvas"></canvas>
-
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -44,24 +41,23 @@
     animate();
 
     function init() {
-      // 基本场景
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 2000);
       camera.position.set(0, 8, 20);
 
-      renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false });
+      renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
       renderer.setSize(innerWidth, innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
 
-      // 环境贴图（HDR）
+      // 环境贴图：使用 threejs.org 上的 HDR 资源
       const pmrem = new THREE.PMREMGenerator(renderer);
       new RGBELoader()
         .setDataType(THREE.UnsignedByteType)
         .load(
-          'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/textures/equirectangular/royal_esplanade_1k.hdr',
+          'https://threejs.org/examples/textures/equirectangular/royal_esplanade_1k.hdr',
           hdr => {
             const envMap = pmrem.fromEquirectangular(hdr).texture;
             scene.environment = envMap;
@@ -84,54 +80,53 @@
     }
 
     function initWater() {
-      // 生成水面
-      const geo = new THREE.PlaneGeometry(200, 200);
+      const geo = new THREE.PlaneGeometry(200,200);
       const normals = new THREE.TextureLoader().load(
-        'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/textures/waternormals.jpg',
-        t => t.wrapS = t.wrapT = THREE.RepeatWrapping
+        'https://threejs.org/examples/textures/waternormals.jpg',
+        tex => tex.wrapS = tex.wrapT = THREE.RepeatWrapping
       );
       water = new Water(geo, {
         textureWidth: 512,
         textureHeight: 512,
         waterNormals: normals,
-        sunDirection: new THREE.Vector3(0.3, 1, 0.4).normalize(),
+        sunDirection: new THREE.Vector3(0.3,1,0.3).normalize(),
         sunColor: 0xffffff,
         waterColor: 0x1EB980,
         distortionScale: 1.5,
-        fog: scene.fog !== undefined
+        fog: false
       });
       water.rotation.x = -Math.PI/2;
       water.position.y = 0;
       scene.add(water);
+
+      // 调试控制
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.maxPolarAngle = Math.PI/2 - 0.1;
     }
 
     function initKoi() {
-      const loader = new GLTFLoader();
-      loader.load(
+      new THREE.GLTFLoader().load(
         `${window.location.origin}/koi.glb`,
         gltf => {
-          // 隐藏 loading
           loading.style.display = 'none';
-          // 放大鱼体（更醒目）
           const model = gltf.scene;
           model.scale.set(12,12,12);
           model.position.y = 1.5;
           model.traverse(n=> n.isMesh && (n.castShadow=true));
           scene.add(model);
 
-          // 骨骼动画
           mixer = new THREE.AnimationMixer(model);
           console.log('动画片段：', gltf.animations.map(a=>a.name));
-          gltf.animations.forEach(clip=> mixer.clipAction(clip).play());
+          gltf.animations.forEach(clip => mixer.clipAction(clip).play());
 
-          // 点击触发 flee
           window.addEventListener('pointerdown', ()=>{
             const clip = gltf.animations.find(c=>/flee/i.test(c.name));
-            if(clip){
-              const act = mixer.clipAction(clip);
-              act.reset().play();
-              act.clampWhenFinished = true;
-              act.loop = THREE.LoopOnce;
+            if (clip) {
+              const action = mixer.clipAction(clip);
+              action.reset().play();
+              action.clampWhenFinished = true;
+              action.loop = THREE.LoopOnce;
             }
           });
         },
@@ -155,8 +150,8 @@
     function animate() {
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
-      if(mixer) mixer.update(dt);
-      if(water) water.material.uniforms['time'].value += dt;
+      if (mixer) mixer.update(dt);
+      if (water) water.material.uniforms['time'].value += dt;
       renderer.render(scene, camera);
     }
   </script>
