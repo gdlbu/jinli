@@ -3,7 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池（全动画播放版）</title>
+  <title>3D 骨骼锦鲤—ImportMap 版</title>
+
+  <!-- Import Map：把 bare specifier 映射到 CDN URL -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js",
+      "three/":  "https://cdn.jsdelivr.net/npm/three@0.154.0/"
+    }
+  }
+  </script>
+
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#faf8f2; }
     #loading {
@@ -14,110 +25,89 @@
     }
     canvas { display:block }
   </style>
-
-  <!-- Import Map，将 bare specifier 映射到 CDN -->
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js",
-      "three/":  "https://cdn.jsdelivr.net/npm/three@0.154.0/"
-    }
-  }
-  </script>
 </head>
 <body>
   <div id="loading">加载中… 0%</div>
   <canvas id="canvas"></canvas>
 
   <script type="module">
+    // 现在可以直接用 bare specifier 了
     import * as THREE from 'three';
     import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
     import { GLTFLoader }  from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-    let scene, camera, renderer, clock, mixer;
     const loadingDiv = document.getElementById('loading');
     const canvas     = document.getElementById('canvas');
+
+    let scene, camera, renderer, clock, mixer, swimAction, fleeAction;
 
     init();
     animate();
 
     function init() {
-      // 初始化场景与相机
       scene = new THREE.Scene();
       clock = new THREE.Clock();
+
       camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 1000);
       camera.position.set(0, 5, 10);
 
-      // 渲染器
       renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
       renderer.setSize(innerWidth, innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
 
-      // 灯光
       scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(5, 10, 7);
-      scene.add(dirLight);
+      const dl = new THREE.DirectionalLight(0xffffff, 0.8);
+      dl.position.set(5,10,7);
+      scene.add(dl);
 
-      // 地面（可选）
       const ground = new THREE.Mesh(
-        new THREE.PlaneGeometry(200, 200),
-        new THREE.MeshPhongMaterial({ color: 0xe0dfd5, depthWrite: false })
+        new THREE.PlaneGeometry(200,200),
+        new THREE.MeshPhongMaterial({ color:0xe0dfd5, depthWrite:false })
       );
-      ground.rotation.x = -Math.PI / 2;
+      ground.rotation.x = -Math.PI/2;
       scene.add(ground);
 
-      // 调试用控制器
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
 
-      // 加载模型
       const loader = new GLTFLoader();
       const url    = `${window.location.origin}/koi.glb`;
       loader.load(
         url,
         gltf => {
-          console.log('模型加载成功', gltf);
           loadingDiv.style.display = 'none';
-
           const model = gltf.scene;
           model.scale.set(2,2,2);
           scene.add(model);
 
-          // 创建 AnimationMixer
           mixer = new THREE.AnimationMixer(model);
+          const clips = gltf.animations;
+          swimAction = mixer.clipAction(clips.find(c=>/swim/i.test(c.name)));
+          fleeAction = mixer.clipAction(clips.find(c=>/flee/i.test(c.name)));
+          swimAction.play();
 
-          // 打印并播放所有动画片段
-          console.log('模型自带动画片段：', gltf.animations.map(a=>a.name));
-          gltf.animations.forEach(clip => {
-            const action = mixer.clipAction(clip);
-            action.play();
-            // 默认循环模式，可根据需要修改：
-            // action.loop = THREE.LoopRepeat;
-          });
-
-          // 点击可触发名为 "Flee" 的动画一次播放
-          window.addEventListener('pointerdown', () => {
-            const fleeClip = gltf.animations.find(c => /flee/i.test(c.name));
-            if (fleeClip) {
-              const action = mixer.clipAction(fleeClip);
-              action.reset().play();
-              action.clampWhenFinished = true;
-              action.loop = THREE.LoopOnce;
-            }
+          window.addEventListener('pointerdown', ()=>{
+            fleeAction.reset().play();
+            swimAction.stop();
+            fleeAction.clampWhenFinished = true;
+            fleeAction.loop = THREE.LoopOnce;
+            mixer.addEventListener('finished', ()=>{
+              fleeAction.stop();
+              swimAction.reset().play();
+            });
           });
         },
         xhr => {
-          const pct = xhr.total ? Math.round(xhr.loaded / xhr.total * 100) : 0;
+          const pct = xhr.total ? Math.round(xhr.loaded/xhr.total*100) : 0;
           loadingDiv.innerText = `加载中… ${pct}%`;
         },
         err => {
-          console.error('模型加载出错：', err);
-          loadingDiv.innerText = `🚨 加载失败：${err.message || err}`;
+          console.error('加载 GLTF 出错:', err);
+          loadingDiv.innerText = `🚨 加载失败：${err.message||err}`;
         }
       );
 
-      window.addEventListener('resize', () => {
+      window.addEventListener('resize', ()=>{
         camera.aspect = innerWidth/innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(innerWidth, innerHeight);
