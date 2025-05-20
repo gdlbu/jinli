@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>极致真实·3D 锦鲤池（Classic Script 版）</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>极致真实·3D 锦鲤池（Classic Script 最终版）</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
     #loading {
@@ -20,7 +20,7 @@
   <canvas id="canvas"></canvas>
 
   <!-- 核心 Three.js -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
   <!-- 控制器 -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/examples/js/controls/OrbitControls.js"></script>
   <!-- 模型加载 -->
@@ -45,14 +45,14 @@
     animate();
 
     function init() {
-      // 场景、相机、时钟
+      // 场景 + 相机 + 时钟
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 2000);
       camera.position.set(0, 8, 20);
 
-      // 渲染器与色调映射
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      // 渲染器 & 色调映射
+      renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.shadowMap.enabled = true;
@@ -69,18 +69,18 @@
       sun.setFromSphericalCoords(1, Math.PI*0.4, Math.PI*0.25);
       sky.material.uniforms['sunPosition'].value.copy(sun);
 
-      // 光源
+      // 环境光 & 方向光
       scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.6));
       const dirLight = new THREE.DirectionalLight(0xfff8ea, 2.0);
       dirLight.position.copy(sun).multiplyScalar(50);
       dirLight.castShadow = true;
-      dirLight.shadow.mapSize.set(2048,2048);
+      dirLight.shadow.mapSize.set(2048, 2048);
       scene.add(dirLight);
 
-      // 地面阴影接收
+      // 地面（阴影接收）
       const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(200,200),
-        new THREE.ShadowMaterial({ opacity: 0.2 })
+        new THREE.ShadowMaterial({ opacity:0.2 })
       );
       ground.rotation.x = -Math.PI/2;
       ground.position.y = -0.1;
@@ -89,14 +89,14 @@
 
       // 水面
       const waterGeo = new THREE.PlaneGeometry(200,200);
-      const waterNormals = new THREE.TextureLoader().load(
+      const normals = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg',
         tex => { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; }
       );
       water = new THREE.Water(waterGeo, {
         textureWidth: 512,
         textureHeight: 512,
-        waterNormals: waterNormals,
+        waterNormals: normals,
         sunDirection: sun.clone().normalize(),
         sunColor: 0xffffff,
         waterColor: 0x1EB980,
@@ -110,6 +110,7 @@
       // 后处理：Bloom + FXAA
       composer = new THREE.EffectComposer(renderer);
       composer.addPass(new THREE.RenderPass(scene, camera));
+
       const bloom = new THREE.UnrealBloomPass(
         new THREE.Vector2(window.innerWidth, window.innerHeight),
         1.2, 0.4, 0.85
@@ -118,6 +119,7 @@
       bloom.strength  = 0.8;
       bloom.radius    = 0.6;
       composer.addPass(bloom);
+
       const fxaa = new THREE.ShaderPass(THREE.FXAAShader);
       fxaa.uniforms['resolution'].value.set(1/window.innerWidth, 1/window.innerHeight);
       composer.addPass(fxaa);
@@ -127,51 +129,50 @@
       controls.enableDamping = true;
       controls.maxPolarAngle = Math.PI/2 - 0.1;
 
-      // 加载锦鲤模型
+      // 加载 GLB
       const loader = new THREE.GLTFLoader();
       loader.load(
         `${window.location.origin}/koi.glb`,
-        function(gltf) {
+        function(gltf){
           loading.style.display = 'none';
           const model = gltf.scene;
           model.scale.set(12,12,12);
           model.position.y = 1.5;
-          model.traverse(n => {
-            if (n.isMesh) {
+          model.traverse(n=>{
+            if(n.isMesh){
               const mat = new THREE.MeshPhysicalMaterial({
                 map: n.material.map,
                 envMap: scene.background,
-                envMapIntensity: 1.5,
-                metalness: 0.2,
-                roughness: 0.4,
-                clearcoat: 0.3,
-                clearcoatRoughness: 0.1,
-                side: THREE.DoubleSide
+                envMapIntensity:1.5,
+                metalness:0.2,
+                roughness:0.4,
+                clearcoat:0.3,
+                clearcoatRoughness:0.1,
+                side:THREE.DoubleSide
               });
               n.material = mat;
               n.castShadow = true;
             }
           });
           scene.add(model);
-
           mixer = new THREE.AnimationMixer(model);
-          gltf.animations.forEach(clip => mixer.clipAction(clip).play());
-          window.addEventListener('pointerdown', () => {
+          gltf.animations.forEach(clip=> mixer.clipAction(clip).play());
+          window.addEventListener('pointerdown', ()=>{
             const flee = gltf.animations.find(c=>/flee/i.test(c.name));
-            if (flee) {
-              const action = mixer.clipAction(flee);
-              action.reset().play();
-              action.clampWhenFinished = true;
-              action.loop = THREE.LoopOnce;
+            if(flee){
+              const a = mixer.clipAction(flee);
+              a.reset().play();
+              a.clampWhenFinished = true;
+              a.loop = THREE.LoopOnce;
             }
           });
         },
-        function(xhr) {
-          const pct = xhr.total ? Math.round(xhr.loaded/xhr.total*100) : 0;
+        function(xhr){
+          const pct = xhr.total?Math.round(xhr.loaded/xhr.total*100):0;
           loading.innerText = `加载锦鲤… ${pct}%`;
         },
-        function(err) {
-          console.error('锦鲤加载失败', err);
+        function(err){
+          console.error('加载失败', err);
           loading.innerText = '⚠️ 锦鲤加载失败';
         }
       );
@@ -179,17 +180,17 @@
       window.addEventListener('resize', onWindowResize);
     }
 
-    function onWindowResize() {
+    function onWindowResize(){
       camera.aspect = window.innerWidth/window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
       composer.setSize(window.innerWidth, window.innerHeight);
     }
 
-    function animate() {
+    function animate(){
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
-      if (mixer) mixer.update(dt);
+      if(mixer) mixer.update(dt);
       water.material.uniforms['time'].value += dt;
       composer.render();
     }
