@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>极致真实·3D 锦鲤池（模块化绝对路径版）</title>
+  <title>3D 锦鲤池（本地模块版）</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
     #loading {
@@ -20,16 +20,16 @@
   <canvas id="canvas"></canvas>
 
   <script type="module">
-    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js';
-    import { OrbitControls }    from 'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/controls/OrbitControls.js';
-    import { GLTFLoader }        from 'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/loaders/GLTFLoader.js';
-    import { Water }             from 'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/objects/Water.js';
-    import { Sky }               from 'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/objects/Sky.js';
-    import { EffectComposer }    from 'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/postprocessing/EffectComposer.js';
-    import { RenderPass }        from 'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/postprocessing/RenderPass.js';
-    import { UnrealBloomPass }   from 'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/postprocessing/UnrealBloomPass.js';
-    import { ShaderPass }        from 'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/postprocessing/ShaderPass.js';
-    import { FXAAShader }        from 'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/shaders/FXAAShader.js';
+    import * as THREE from './js/three.module.js';
+    import { OrbitControls }  from './js/controls/OrbitControls.js';
+    import { GLTFLoader }      from './js/loaders/GLTFLoader.js';
+    import { Water }           from './js/objects/Water.js';
+    import { Sky }             from './js/objects/Sky.js';
+    import { EffectComposer }  from './js/postprocessing/EffectComposer.js';
+    import { RenderPass }      from './js/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from './js/postprocessing/UnrealBloomPass.js';
+    import { ShaderPass }      from './js/postprocessing/ShaderPass.js';
+    import { FXAAShader }      from './js/postprocessing/shaders/FXAAShader.js';
 
     let scene, camera, renderer, clock, mixer, water, composer;
     const loading = document.getElementById('loading');
@@ -39,15 +39,15 @@
     animate();
 
     function init() {
-      // 场景、相机、时钟
+      // 场景 + 相机 + 时钟
       scene = new THREE.Scene();
       clock = new THREE.Clock();
-      camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 2000);
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 2000);
       camera.position.set(0, 8, 20);
 
       // 渲染器 & 色调映射
       renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
-      renderer.setSize(innerWidth, innerHeight);
+      renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
@@ -55,26 +55,25 @@
       renderer.toneMappingExposure = 1.2;
       renderer.setClearColor(0x87CEEB);
 
-      // 天空 & 太阳
+      // 天空
       const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
-      const sun = new THREE.Vector3();
-      sun.setFromSphericalCoords(1, Math.PI*0.4, Math.PI*0.25);
+      const sun = new THREE.Vector3().setFromSphericalCoords(1, Math.PI*0.4, Math.PI*0.25);
       sky.material.uniforms['sunPosition'].value.copy(sun);
 
-      // 环境光和方向光
+      // 光照
       scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.6));
       const dirLight = new THREE.DirectionalLight(0xfff8ea, 2.0);
       dirLight.position.copy(sun).multiplyScalar(50);
       dirLight.castShadow = true;
-      dirLight.shadow.mapSize.set(2048, 2048);
+      dirLight.shadow.mapSize.set(2048,2048);
       scene.add(dirLight);
 
-      // 地面（阴影接收）
+      // 地面（接阴影）
       const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(200,200),
-        new THREE.ShadowMaterial({ opacity: 0.2 })
+        new THREE.ShadowMaterial({ opacity:0.2 })
       );
       ground.rotation.x = -Math.PI/2;
       ground.position.y = -0.1;
@@ -82,19 +81,19 @@
       scene.add(ground);
 
       // 水面
-      const waterGeo     = new THREE.PlaneGeometry(200,200);
-      const waterNormals = new THREE.TextureLoader().load(
+      const waterGeo = new THREE.PlaneGeometry(200,200);
+      const normals = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg',
-        tex => tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+        tex => { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; }
       );
       water = new Water(waterGeo, {
-        textureWidth: 512, textureHeight: 512,
-        waterNormals,
+        textureWidth:512, textureHeight:512,
+        waterNormals:normals,
         sunDirection: sun.clone().normalize(),
-        sunColor: 0xffffff,
-        waterColor: 0x1EB980,
-        distortionScale: 1.2,
-        fog: false
+        sunColor:0xffffff,
+        waterColor:0x1EB980,
+        distortionScale:1.2,
+        fog:false
       });
       water.rotation.x = -Math.PI/2;
       water.position.y = 0;
@@ -104,42 +103,42 @@
       composer = new EffectComposer(renderer);
       composer.addPass(new RenderPass(scene, camera));
       const bloom = new UnrealBloomPass(
-        new THREE.Vector2(innerWidth, innerHeight),
-        1.2, 0.4, 0.85
+        new THREE.Vector2(window.innerWidth,window.innerHeight),
+        1.2,0.4,0.85
       );
       bloom.threshold = 0.2;
       bloom.strength  = 0.8;
       bloom.radius    = 0.6;
       composer.addPass(bloom);
       const fxaa = new ShaderPass(FXAAShader);
-      fxaa.uniforms['resolution'].value.set(1/innerWidth, 1/innerHeight);
+      fxaa.uniforms['resolution'].value.set(1/window.innerWidth,1/window.innerHeight);
       composer.addPass(fxaa);
 
-      // 轨道控制
+      // 控制
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.maxPolarAngle = Math.PI/2 - 0.1;
 
-      // 加载锦鲤（GLB + PBR 材质）
+      // 加载锦鲤
       const loader = new GLTFLoader();
       loader.load(
-        `${window.location.origin}/koi.glb`,
+        './koi.glb',
         gltf => {
           loading.style.display = 'none';
           const model = gltf.scene;
           model.scale.set(12,12,12);
           model.position.y = 1.5;
-          model.traverse(n => {
-            if (n.isMesh) {
+          model.traverse(n=>{
+            if(n.isMesh){
               const mat = new THREE.MeshPhysicalMaterial({
                 map: n.material.map,
                 envMap: scene.environment,
-                envMapIntensity: 1.5,
-                metalness: 0.2,
-                roughness: 0.4,
-                clearcoat: 0.3,
-                clearcoatRoughness: 0.1,
-                side: THREE.DoubleSide
+                envMapIntensity:1.5,
+                metalness:0.2,
+                roughness:0.4,
+                clearcoat:0.3,
+                clearcoatRoughness:0.1,
+                side:THREE.DoubleSide
               });
               n.material = mat;
               n.castShadow = true;
@@ -148,43 +147,40 @@
           scene.add(model);
 
           mixer = new THREE.AnimationMixer(model);
-          gltf.animations.forEach(clip => mixer.clipAction(clip).play());
-
-          window.addEventListener('pointerdown', () => {
+          gltf.animations.forEach(clip=> mixer.clipAction(clip).play());
+          window.addEventListener('pointerdown', ()=>{
             const flee = gltf.animations.find(c=>/flee/i.test(c.name));
-            if (flee) {
-              const action = mixer.clipAction(flee);
-              action.reset().play();
-              action.clampWhenFinished = true;
-              action.loop = THREE.LoopOnce;
+            if(flee){
+              const a = mixer.clipAction(flee);
+              a.reset().play();
+              a.clampWhenFinished = true;
+              a.loop = THREE.LoopOnce;
             }
           });
         },
         xhr => {
-          const pct = xhr.total ? Math.round(xhr.loaded/xhr.total*100) : 0;
-          loading.innerText = `加载锦鲤… ${pct}%`;
+          const pct = xhr.total?Math.round(xhr.loaded/xhr.total*100):0;
+          loading.innerText = `加载锦鲤…${pct}%`;
         },
         err => {
-          console.error('锦鲤加载失败', err);
+          console.error('加载失败',err);
           loading.innerText = '⚠️ 锦鲤加载失败';
         }
       );
 
-      window.addEventListener('resize', onWindowResize);
+      window.addEventListener('resize', ()=>{
+        camera.aspect = innerWidth/innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth,innerHeight);
+        composer.setSize(innerWidth,innerHeight);
+      });
     }
 
-    function onWindowResize() {
-      camera.aspect = innerWidth/innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(innerWidth, innerHeight);
-      composer.setSize(innerWidth, innerHeight);
-    }
-
-    function animate() {
+    function animate(){
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
-      if (mixer) mixer.update(dt);
-      water.material.uniforms['time'].value += dt;
+      if(mixer) mixer.update(dt);
+      if(water) water.material.uniforms['time'].value += dt;
       composer.render();
     }
   </script>
