@@ -1,2 +1,9 @@
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:;
+  # 允许本域和 cdn.jsdelivr.net 的脚本、允许 inline 脚本和 eval
+  Content-Security-Policy: 
+    default-src 'self';
+    script-src   'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net;
+    script-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+    style-src    'self' 'unsafe-inline';
+    img-src      'self' data:;
+    font-src     'self';
