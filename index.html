@@ -51,15 +51,11 @@
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
-      // 初始俯视视角：摄像机位于鱼头上方并俯视
-      camera.position.set(0, 0, 20);
-      camera.up.set(0, 0, 1); // 设置 world Z 轴为屏幕上方
+      // 初始俯视视角：鱼头朝上（从前往后俯视，并对画面做一次 Z 轴翻转）
+      camera.position.set(0, 0, 20);   // 沿 Z 轴正方向俯视
       camera.lookAt(0, 0, 0);
-      // 初始旋转视图，使鱼头指向屏幕上方
-      // camera.rotateZ(Math.PI / 2); // 移除 roll 旋转，改用 camera.up 定义初始方向
-
-       // 初始时旋转视图，使鱼头朝屏幕上方
-
+      // 只在初始时让鱼头指向屏幕上方
+      camera.rotateZ(Math.PI / 2);
 
       renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
       renderer.setSize(window.innerWidth, window.innerHeight);
@@ -67,14 +63,12 @@
       renderer.shadowMap.enabled = true;
       renderer.outputEncoding = THREE.sRGBEncoding;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.6; // 降低曝光
-      //renderer.setClearColor(0x87CEEB); // Removed to use HDR sky background
-
+      renderer.toneMappingExposure = 0.6;
 
       // Sky Dome
       const sky = new Sky();
       sky.scale.setScalar(10000);
-      sky.material.side = THREE.BackSide; // 渲染内侧
+      sky.material.side = THREE.BackSide;
       scene.add(sky);
       const su = sky.material.uniforms;
       su['turbidity'].value = 0.2;
@@ -88,9 +82,7 @@
       const pmremGen = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGen.fromScene(sky).texture;
       scene.environment = envMap;
-      // 使用环境贴图作为背景显示深邃天空
       scene.background = envMap;
-      // 一旦背景渲染完成，移除加载遮罩
       loadingDiv.style.display = 'none';
 
       // 光照
@@ -123,7 +115,7 @@
         waterNormals,
         sunDirection: sunP.clone().normalize(),
         sunColor: 0xffffff,
-        waterColor: 0x00FA9A, // 浅春绿色
+        waterColor: 0x00FA9A,
         distortionScale: 3.0,
         fog: false
       });
@@ -133,7 +125,7 @@
       water.material.opacity = 0.95;
       scene.add(water);
 
-      // 控制器
+      // 控制器（可自由旋转）
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
 
@@ -147,7 +139,7 @@
           gltf.animations.forEach(c => mixer.clipAction(c).play());
           gltf.scene.scale.set(12, 12, 12);
           gltf.scene.position.y = 1.5;
-                    // 不对鱼模型进行旋转，保留原始方向
+          gltf.scene.traverse(n => n.isMesh && (n.castShadow = true));
           scene.add(gltf.scene);
         },
         xhr => {
