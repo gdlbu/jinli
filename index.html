@@ -54,7 +54,7 @@
       // 初始俯视视角：鱼头朝上（通过旋转视图实现，不锁定 up）
       camera.position.set(0, 0, 20); // 沿 Z 轴正方向俯视
       camera.lookAt(0, 0, 0);
-      camera.rotateZ(Math.PI / 2); // 初始时旋转视图，使鱼头朝屏幕上方
+       // 初始时旋转视图，使鱼头朝屏幕上方
 
 
       renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
@@ -143,6 +143,8 @@
           gltf.animations.forEach(c => mixer.clipAction(c).play());
           gltf.scene.scale.set(12, 12, 12);
           gltf.scene.position.y = 1.5;
+          // 初始将鱼模型绕 Z 轴旋转 90°，使鱼头朝上
+          gltf.scene.rotation.z = -Math.PI / 2;
           gltf.scene.traverse(n => n.isMesh && (n.castShadow = true));
           scene.add(gltf.scene);
         },
