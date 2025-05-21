@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池 - 绚丽晚霞与更明亮锦鲤</title>
+  <title>3D 锦鲤池 - 极致绚丽晚霞与高亮锦鲤</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; /* Initial background, will be overridden by sky */ }
     #loading {
@@ -61,7 +61,7 @@
       renderer.shadowMap.enabled = true;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.85; // Significantly increased exposure for brighter scene and fish
+      renderer.toneMappingExposure = 0.95; // Further increased exposure for very bright scene and fish
 
       // Sky Dome
       const sky = new Sky();
@@ -69,16 +69,16 @@
       scene.add(sky);
 
       const skyUniforms = sky.material.uniforms;
-      // Adjusted sky parameters for a more beautiful and vibrant sunset effect
-      skyUniforms['turbidity'].value = 20;    // Increased haze for more dramatic sunset
-      skyUniforms['rayleigh'].value = 0.8;     // Further lowered Rayleigh for very strong sunset reds/oranges
-      skyUniforms['mieCoefficient'].value = 0.002; // Adjusted mie for softer, wider sun glow
-      skyUniforms['mieDirectionalG'].value = 0.95;  // More pronounced forward scattering for sun glow
+      // Adjusted sky parameters for a truly vibrant and colorful "漫天彩霞" (sky full of colorful clouds)
+      skyUniforms['turbidity'].value = 25; // High turbidity for dramatic, hazy sunset
+      skyUniforms['rayleigh'].value = 0.6;  // Very low Rayleigh to let warm colors dominate intensely
+      skyUniforms['mieCoefficient'].value = 0.0015; // Fine-tuned for a broad, soft sun glow
+      skyUniforms['mieDirectionalG'].value = 0.98; // Very strong forward scatter for intense sun/horizon glow
 
-      // Sun position: Lowered slightly more for deeper sunset colors
+      // Sun position: Just below the horizon for peak twilight colors
       const sunPosition = new THREE.Vector3();
-      const phi = THREE.MathUtils.degToRad(90 - 0.5); // Sun 0.5 degrees above horizon (almost setting)
-      const theta = THREE.MathUtils.degToRad(190);    // Azimuth: e.g., 190 for a slightly off-center west
+      const phi = THREE.MathUtils.degToRad(90 + 0.8); // Sun 0.8 degrees below horizon
+      const theta = THREE.MathUtils.degToRad(195);    // Azimuth for sunset direction
       sunPosition.setFromSphericalCoords(1, phi, theta);
       skyUniforms['sunPosition'].value.copy(sunPosition);
 
@@ -90,10 +90,10 @@
       pmremGenerator.dispose();
 
       // Lighting
-      // Hemisphere light for ambient sky/ground colors - much brighter and warmer
-      scene.add(new THREE.HemisphereLight(0xffcc99, 0x705050, 0.8)); // Very warm sky, warmer ground, increased intensity
-      const dirLight = new THREE.DirectionalLight(0xffa500, 1.2); // Deep orange sun light, further increased intensity
-      dirLight.position.copy(sunPosition).multiplyScalar(50);
+      // Hemisphere light for very warm ambient sky/ground colors
+      scene.add(new THREE.HemisphereLight(0xffa060, 0x604040, 1.0)); // Intense warm orange sky, warm ground, high intensity
+      const dirLight = new THREE.DirectionalLight(0xff8844, 1.5); // Strong, saturated orange-red sun light
+      dirLight.position.copy(sunPosition).multiplyScalar(50); // Light comes from sun's direction (even if below horizon)
       dirLight.castShadow = true;
       dirLight.shadow.mapSize.width = 2048;
       dirLight.shadow.mapSize.height = 2048;
@@ -106,7 +106,7 @@
       scene.add(dirLight);
 
       // Sand Bottom
-      const sandMaterial = new THREE.MeshStandardMaterial({ color: 0xB0A070, roughness: 1 }); // Slightly adjusted sand for evening
+      const sandMaterial = new THREE.MeshStandardMaterial({ color: 0xA09060, roughness: 1 }); // Adjusted sand for deep evening
       const sandGeometry = new THREE.PlaneGeometry(200, 200);
       const sand = new THREE.Mesh(sandGeometry, sandMaterial);
       sand.rotation.x = -Math.PI / 2;
@@ -127,8 +127,8 @@
         textureWidth: 1024,
         textureHeight: 1024,
         waterNormals: waterNormalsTexture,
-        sunDirection: sunPosition.clone().normalize(),
-        sunColor: dirLight.color.getHex(), // Match water sun color to directional light
+        sunDirection: sunPosition.clone().normalize(), // Use the calculated sun direction
+        sunColor: dirLight.color.getHex(), // Match water sun color to directional light for consistency
         waterColor: 0x40E0D0, // Keep water turquoise/green as requested
         distortionScale: 3.7,
         fog: scene.fog !== undefined
@@ -141,7 +141,7 @@
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
-      controls.minDistance = 3; // Allow closer zoom
+      controls.minDistance = 3; 
       controls.maxDistance = 100;
       controls.maxPolarAngle = Math.PI / 2 - 0.01; 
       controls.target.set(0, 1, 0);
