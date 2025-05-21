@@ -60,28 +60,28 @@
       renderer.shadowMap.enabled = true;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.6;
+      renderer.toneMappingExposure = 0.9;  // 更亮
       renderer.setClearColor(0x0077be, 1);
 
-      // Sky Dome
+      // Sky Dome（更蓝更亮参数！）
       const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
       const su = sky.material.uniforms;
-      // 调整天空参数，蓝天效果更自然
-      su.turbidity.value = 6;
-      su.rayleigh.value = 2;
-      su.mieCoefficient.value = 0.005;
-      su.mieDirectionalG.value = 0.7;
-      // 太阳位置更高，蓝天更明显
-      const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.45, Math.PI * 0.25);
+      su.turbidity.value = 2.5;         // 低turbidity更通透
+      su.rayleigh.value = 3.5;          // 高rayleigh更蓝
+      su.mieCoefficient.value = 0.003;  // 低一点更纯净
+      su.mieDirectionalG.value = 0.75;  // 保持
+      const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.32, Math.PI * 0.25);
+      // π*0.32约57.6度，太阳更高
       su.sunPosition.value.copy(sunPos);
 
       // 环境贴图 & 背景
       const pmremGen = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGen.fromScene(sky).texture;
       scene.environment = envMap;
-      scene.background = sky; // ★用 Sky 本身做背景，不是 envMap
+      scene.background = sky; // 直接用Sky
+
       loadingDiv.style.display = 'none';
 
       // 光照
