@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池（增强版：墨绿色清澈湖水）</title>
+  <title>3D 锦鲤池（增强版：墨绿色清澈湖水 + 加载检测）</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
     #loading {
@@ -42,6 +42,12 @@
     animate();
 
     function init() {
+      // 若通过 file:// 协议打开，GLTFLoader 无法加载模型
+      if (window.location.protocol === 'file:') {
+        loadingDiv.innerText = '⚠️ 请通过 HTTP 服务器（如 python -m http.server）打开此页面';
+        return;
+      }
+
       // 场景 & 时钟 & 相机
       scene = new THREE.Scene();
       clock = new THREE.Clock();
@@ -86,35 +92,32 @@
       // 底部沙地
       const sand = new THREE.Mesh(
         new THREE.PlaneGeometry(200,200),
-        new THREE.MeshStandardMaterial({
-          color: 0xDDCBA0,
-          roughness: 1.0
-        })
+        new THREE.MeshStandardMaterial({ color: 0xDDCBA0, roughness: 1.0 })
       );
       sand.rotation.x = -Math.PI/2;
       sand.position.y = 0;
       scene.add(sand);
 
-      // 墨绿色清澈水面
+      // 水面（墨绿色清澈）
       const waterGeo = new THREE.PlaneGeometry(200, 200);
       const waterNormals = new THREE.TextureLoader().load(
-        'https://threejs.org/examples/textures/waternormals.jpg', tex => tex.repeat.set(4,4)
+        'https://threejs.org/examples/textures/waternormals.jpg', tex => tex.repeat.set(4,4), undefined, err => {
+          console.warn('水面法线贴图加载失败：', err);
+        }
       );
       water = new Water(waterGeo, {
-        textureWidth: 512,
-        textureHeight: 512,
+        textureWidth: 256,
+        textureHeight: 256,
         waterNormals,
         sunDirection: sun.clone().normalize(),
         sunColor: 0xffffff,
-        waterColor: 0x013220,  // 墨绿色
+        waterColor: 0x013220,
         distortionScale: 1.0,
         fog: scene.fog !== undefined
       });
       water.rotation.x = -Math.PI/2;
-      water.position.y = 0.2;  // 略高于沙面，以区分水面与沙底
+      water.position.y = 0.2;
       scene.add(water);
-
-      // 使水面半透明以呈现清澈效果
       water.material.transparent = true;
       water.material.opacity = 0.7;
 
@@ -123,11 +126,17 @@
       controls.enableDamping = true;
       controls.maxPolarAngle = Math.PI/2 - 0.1;
 
-      // 加载锦鲤模型 (请确保 koi.glb 与此 HTML 同目录)
+      // 加载锦鲤模型并添加超时与错误监测
       const loader = new GLTFLoader();
+      const MAX_LOAD_TIME = 15000; // 15 秒超时
+      const timeoutId = setTimeout(() => {
+        loadingDiv.innerText = '🚨 模型加载超时，请检查路径或网络';
+      }, MAX_LOAD_TIME);
+
       loader.load(
-        'koi.glb',
+        './koi.glb',
         gltf => {
+          clearTimeout(timeoutId);
           loadingDiv.style.display = 'none';
           const model = gltf.scene;
           model.scale.set(12,12,12);
@@ -161,6 +170,7 @@
           loadingDiv.innerText = `加载中… ${pct}%`;
         },
         err => {
+          clearTimeout(timeoutId);
           console.error('加载错误：', err);
           loadingDiv.innerText = `🚨 加载失败：${err.message || err}`;
         }
