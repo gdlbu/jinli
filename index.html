@@ -51,11 +51,11 @@
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
-      // 初始俯视视角：鱼头朝上（位于鱼头前方并俯视）
-      camera.position.set(0, 0, 20); // 沿Z轴正方向俯视
-      // 设置摄像机上方向为世界 Z 轴正方向
-      camera.up.set(0, 0, 1);         // 设定Y轴为屏幕上方向，保证鱼头朝上
+      // 初始俯视视角：鱼头朝上（通过旋转视图实现，不锁定 up）
+      camera.position.set(0, 0, 20); // 沿 Z 轴正方向俯视
       camera.lookAt(0, 0, 0);
+      camera.rotateZ(Math.PI / 2); // 初始时旋转视图，使鱼头朝屏幕上方
+
 
       renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
       renderer.setSize(window.innerWidth, window.innerHeight);
