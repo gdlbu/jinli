@@ -62,7 +62,7 @@
       renderer.toneMappingExposure = 0.6;
       // 深蓝色清空色，保证背景是海天同色
       // 移除静态 clearColor，让背景使用动感环境贴图
-      // renderer.setClearColor(0x0077be);
+      // renderer.setClearColor(0x87CEEB); // 恢复基础蓝色清空，让 sky mesh 可见
 
       // Sky: 强化蓝天效果
       const sky = new Sky();
@@ -81,7 +81,7 @@
       const envMap = pmremGen.fromScene(sky).texture;
       scene.environment = envMap;
       // 使用环境贴图作为背景，确保天空HDR可见
-      scene.background = envMap;
+      
 
       // 光照
       scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.3)); // 减弱环境光
