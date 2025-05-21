@@ -38,7 +38,8 @@
     const loadingDiv = document.getElementById('loading');
     const canvas = document.getElementById('canvas');
 
-    init(); animate();
+    init();
+    animate();
 
     function init() {
       if (window.location.protocol === 'file:') {
@@ -70,7 +71,8 @@
       uniforms['mieDirectionalG'].value = 0.8;
       const sun = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
       uniforms['sunPosition'].value.copy(sun);
-      // 环境贴图
+
+      // 环境贴图 & 背景
       const pmremGenerator = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGenerator.fromScene(sky).texture;
       scene.environment = envMap;
@@ -82,14 +84,18 @@
       dirLight.position.copy(sun).multiplyScalar(50);
       dirLight.castShadow = true;
       scene.add(dirLight);
-      scene.add(new THREE.DirectionalLight(0xffffff, 0.3).setPosition(-10,10,-10));
+      // 侧光
+      const rimLight = new THREE.DirectionalLight(0xffffff, 0.3);
+      rimLight.position.set(-10, 10, -10);
+      scene.add(rimLight);
 
       // Ground & Sand
       const sand = new THREE.Mesh(
         new THREE.PlaneGeometry(200,200),
         new THREE.MeshStandardMaterial({ color:0xDDCBA0, roughness:1 })
       );
-      sand.rotation.x = -Math.PI/2; sand.position.y = 0;
+      sand.rotation.x = -Math.PI/2;
+      sand.position.y = 0;
       scene.add(sand);
 
       // Water: 翠绿 + 真实波纹
@@ -101,15 +107,17 @@
         err => console.warn('水面法线加载失败', err)
       );
       water = new Water(waterGeo, {
-        textureWidth: 512, textureHeight: 512,
+        textureWidth: 512,
+        textureHeight: 512,
         waterNormals,
         sunDirection: sun.clone().normalize(),
         sunColor: 0xffffff,
-        waterColor: 0x2E8B57,  // 翠绿色
+        waterColor: 0x2E8B57,
         distortionScale: 2.5,
         fog: false
       });
-      water.rotation.x = -Math.PI/2; water.position.y = 0.1;
+      water.rotation.x = -Math.PI/2;
+      water.position.y = 0.1;
       water.material.transparent = true;
       water.material.opacity = 0.85;
       scene.add(water);
@@ -131,8 +139,14 @@
           gltf.scene.traverse(n => { if (n.isMesh) n.castShadow = true; });
           scene.add(gltf.scene);
         },
-        xhr => loadingDiv.innerText = `加载中… ${Math.round((xhr.loaded/xhr.total)*100)}%`,
-        err => loadingDiv.innerText = '🚨 模型加载失败'
+        xhr => {
+          const pct = xhr.total ? Math.round(xhr.loaded/xhr.total*100) : Math.round(xhr.loaded/1000) + 'KB';
+          loadingDiv.innerText = `加载中… ${pct}`;
+        },
+        err => {
+          console.error('加载失败：', err);
+          loadingDiv.innerText = '🚨 模型加载失败';
+        }
       );
 
       window.addEventListener('resize', () => {
@@ -146,7 +160,7 @@
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
       if (mixer) mixer.update(dt);
-      water.material.uniforms['time'].value += dt;
+      if (water && water.material.uniforms) water.material.uniforms['time'].value += dt;
       renderer.render(scene, camera);
     }
   </script>
