@@ -121,6 +121,8 @@
       water.material.transparent = true;
       water.material.opacity = 0.9;
       scene.add(water);
+      // 隐藏加载遮罩，让天空和水面可见
+      loadingDiv.style.display = 'none';
 
       // 控制
       const controls = new OrbitControls(camera, renderer.domElement);
