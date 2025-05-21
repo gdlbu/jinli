@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池（修复相机位置 & 鱼头朝 +Y）</title>
+  <title>3D 锦鲤池（相机 (0,20,8) + 鱼头朝 −Z）</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
     #loading {
@@ -41,31 +41,30 @@
     animate();
 
     function init() {
-      // 避免 file:// 协议加载阻塞
       if (window.location.protocol === 'file:') {
         loadingDiv.innerText = '⚠️ 请通过 HTTP 服务器打开此页面';
         return;
       }
 
-      // —— 场景 & 时钟 & 相机 —— 
+      // 场景 & 时钟 & 相机
       scene = new THREE.Scene();
       clock = new THREE.Clock();
-      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-      // 初始视角放在 (0, 20, 8)，俯视向原点
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+      // 摄像机放在 (0,20,8)，俯视原点
       camera.position.set(0, 20, 8);
       camera.lookAt(0, 0, 0);
 
-      // —— 渲染器 —— 
+      // 渲染器
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas: document.getElementById('canvas') });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.shadowMap.enabled = true;
-      renderer.outputColorSpace = THREE.SRGBColorSpace;            // three.js r0.154+
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 0.6;
       renderer.setClearColor(0x0077be, 1);
 
-      // —— Sky Dome (碧海蓝天) —— 
+      // Sky Dome (碧海蓝天)
       const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
@@ -77,15 +76,14 @@
       const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.15, Math.PI * 0.25);
       su['sunPosition'].value.copy(sunPos);
 
-      // —— 环境贴图 (IBL) & 背景 —— 
+      // 环境贴图 & 背景
       const pmremGen = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGen.fromScene(sky).texture;
       scene.environment = envMap;
       scene.background = envMap;
-      // 背景就绪，移除遮罩
       loadingDiv.style.display = 'none';
 
-      // —— 光照 —— 
+      // 光照
       scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.copy(sunPos).multiplyScalar(50);
@@ -95,22 +93,19 @@
       rim.position.set(-10, 10, -10);
       scene.add(rim);
 
-      // —— 沙底 —— 
+      // 沙底
       const sand = new THREE.Mesh(
         new THREE.PlaneGeometry(200, 200),
         new THREE.MeshStandardMaterial({ color: 0xDDCBA0, roughness: 1 })
       );
-      sand.rotation.x = -Math.PI / 2;
+      sand.rotation.x = -Math.PI/2;
       scene.add(sand);
 
-      // —— 果冻海玻璃海水面 —— 
+      // 果冻海玻璃海水面
       const waterGeo = new THREE.PlaneGeometry(200, 200);
       const normalTex = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg',
-        tex => {
-          tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-          tex.repeat.set(16, 16);
-        }
+        tex => { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(16, 16); }
       );
       water = new Water(waterGeo, {
         textureWidth: 2048,
@@ -122,25 +117,25 @@
         distortionScale: 3.2,
         fog: false
       });
-      water.rotation.x = -Math.PI / 2;
+      water.rotation.x = -Math.PI/2;
       water.position.y = 0.1;
       water.material.transparent = true;
       water.material.opacity = 0.95;
       scene.add(water);
 
-      // —— 控制器 (OrbitControls) —— 
+      // 控制器（自由旋转）
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
 
-      // —— GLTF 模型加载 & 进度 —— 
+      // 加载锦鲤模型
       const loader = new GLTFLoader();
       loader.load(
         'koi.glb',
         gltf => {
-          // 鱼模型本地 +Z(头部) -> 全局 +Y
-          gltf.scene.rotation.x = -Math.PI / 2;
+          // 鱼头（本地 +Z）→ 全局 -Z：绕Y轴 180°
+          gltf.scene.rotation.set(0, Math.PI, 0);
           mixer = new THREE.AnimationMixer(gltf.scene);
-          gltf.animations.forEach(c => mixer.clipAction(c).play());
+          gltf.animations.forEach(clip => mixer.clipAction(clip).play());
           gltf.scene.scale.set(12, 12, 12);
           gltf.scene.position.y = 1.5;
           gltf.scene.traverse(n => n.isMesh && (n.castShadow = true));
@@ -159,9 +154,9 @@
         err => loadingDiv.innerText = '🚨 模型加载失败'
       );
 
-      // —— 窗口尺寸自适应 —— 
+      // 自适应窗口
       window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.aspect = window.innerWidth/window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
       });
