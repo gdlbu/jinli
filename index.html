@@ -58,7 +58,8 @@
       renderer.outputEncoding = THREE.sRGBEncoding;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       // 通过曝光调节整体亮度
-      renderer.toneMappingExposure = 1.2;
+      // 调低曝光，以免天空过亮
+      renderer.toneMappingExposure = 0.6;
       // 深蓝色清空色，保证背景是海天同色
       renderer.setClearColor(0x0077be);
 
@@ -80,8 +81,8 @@
       scene.environment = envMap;
 
       // 光照
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.5));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.3) // 减弱环境光);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8) // 略微降低主光强;
       dirLight.position.copy(sunPos).multiplyScalar(50);
       dirLight.castShadow = true;
       scene.add(dirLight);
