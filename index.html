@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池（相机(3,10,5)，鱼头朝向 -Z）- 天空修复</title>
+  <title>3D 锦鲤池（相机(3,10,5)，鱼头朝向 -Z）- 天空与水色调整</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; /* Initial background, will be overridden by sky */ }
     #loading {
@@ -73,18 +73,16 @@
 
       const skyUniforms = sky.material.uniforms;
       // Adjusted sky parameters for a more natural blue sky
-      skyUniforms['turbidity'].value = 10;    // Default: 10, User: 0.2
-      skyUniforms['rayleigh'].value = 2;     // Default: 2 or 3, User: 12
+      skyUniforms['turbidity'].value = 8;    // Default: 10, User: 0.2. Lowered for clearer sky.
+      skyUniforms['rayleigh'].value = 3.0;     // Default: 2 or 3, User: 12. Increased for more blue.
       skyUniforms['mieCoefficient'].value = 0.005; // Default: 0.005, User: 0.0005
       skyUniforms['mieDirectionalG'].value = 0.8;  // Default: 0.8, User: 0.9
 
       // Sun position: Lowered the sun for more color
+      const sunPosition = new THREE.Vector3();
       // phi: polar angle from zenith (0 to PI). PI * 0.5 is horizon.
       // theta: azimuthal angle around Y axis (0 to 2PI).
-      // Math.PI * 0.4 (72 deg from zenith) -> 18 deg elevation
-      // Math.PI * 0.15 (27 deg from zenith) -> 63 deg elevation (original, quite high)
-      const sunPosition = new THREE.Vector3();
-      const phi = THREE.MathUtils.degToRad(90 - 25); // Sun elevation: 25 degrees from horizon
+      const phi = THREE.MathUtils.degToRad(90 - 30); // Sun elevation: 30 degrees from horizon
       const theta = THREE.MathUtils.degToRad(180);    // Sun azimuth: from the south (can be adjusted)
       sunPosition.setFromSphericalCoords(1, phi, theta);
       skyUniforms['sunPosition'].value.copy(sunPosition);
@@ -99,8 +97,8 @@
 
 
       // Lighting
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.5)); // Slightly increased intensity
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); // Slightly increased intensity
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x505050, 0.6)); // Adjusted ground color and intensity
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); // Slightly increased intensity
       // Set directional light to follow the sun's position for consistency
       dirLight.position.copy(sunPosition).multiplyScalar(50);
       dirLight.castShadow = true;
@@ -115,13 +113,8 @@
       dirLight.shadow.camera.bottom = -100;
       scene.add(dirLight);
 
-      // Optional: Rim light (can be subtle)
-      // const rimLight = new THREE.DirectionalLight(0xffffff, 0.2);
-      // rimLight.position.set(-10, 10, -10);
-      // scene.add(rimLight);
-
       // Sand Bottom
-      const sandMaterial = new THREE.MeshStandardMaterial({ color: 0xDDCBA0, roughness: 1 });
+      const sandMaterial = new THREE.MeshStandardMaterial({ color: 0xD2B48C, roughness: 1 }); // Tan color for sand
       const sandGeometry = new THREE.PlaneGeometry(200, 200);
       const sand = new THREE.Mesh(sandGeometry, sandMaterial);
       sand.rotation.x = -Math.PI / 2;
@@ -139,20 +132,17 @@
       );
 
       water = new Water(waterGeometry, {
-        textureWidth: 1024, // Can be 512 or 1024 for performance
+        textureWidth: 1024,
         textureHeight: 1024,
         waterNormals: waterNormalsTexture,
-        sunDirection: sunPosition.clone().normalize(), // Use the same sun direction
+        sunDirection: sunPosition.clone().normalize(),
         sunColor: 0xffffff,
-        waterColor: 0x004a7f, // Adjusted water color for a deeper blue
-        distortionScale: 3.7, // Keep or adjust as preferred
-        fog: scene.fog !== undefined // Use scene fog if available
+        waterColor: 0x40E0D0, // Turquoise (Greenish-Blue), as per original user code.
+        distortionScale: 3.7,
+        fog: scene.fog !== undefined
       });
       water.rotation.x = -Math.PI / 2;
-      water.position.y = 0.1; // Ensure it's slightly above the sand
-      // Water material properties
-      // water.material.transparent = true; // Water class handles transparency
-      // water.material.opacity = 0.9; // Adjust opacity if needed, often handled by Water class
+      water.position.y = 0.1;
       scene.add(water);
 
       // OrbitControls
@@ -162,36 +152,32 @@
       controls.minDistance = 5;
       controls.maxDistance = 100;
       controls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent camera from going below ground
-      controls.target.set(0, 1, 0); // Target slightly above origin if fish is there
+      controls.target.set(0, 1, 0);
       controls.update();
 
       // GLTF Loader for Koi Fish
       const loader = new GLTFLoader();
-      // IMPORTANT: Replace 'koi.glb' with the correct path to your model if it's not in the same directory.
-      // For testing, you can use a placeholder or ensure koi.glb is accessible.
-      // If koi.glb is not found, the loading will fail.
       loader.load(
         'koi.glb', // Ensure this path is correct
         (gltf) => {
           const fishModel = gltf.scene;
-          // Rotate fish: local +Z (fish head) -> global -Z
           fishModel.rotation.y = Math.PI;
           mixer = new THREE.AnimationMixer(fishModel);
           gltf.animations.forEach((clip) => {
             mixer.clipAction(clip).play();
           });
           fishModel.scale.set(12, 12, 12);
-          fishModel.position.y = 1.5; // Adjust Y position based on water level and fish size
+          fishModel.position.y = 1.5;
           fishModel.traverse((node) => {
             if (node.isMesh) {
               node.castShadow = true;
-              node.receiveShadow = false; // Fish usually don't receive shadows on themselves much
+              node.receiveShadow = false;
             }
           });
           scene.add(fishModel);
-          loadingDiv.style.display = 'none'; // Hide loading screen once model is loaded
+          loadingDiv.style.display = 'none';
         },
-        (xhr) => { // Progress callback
+        (xhr) => {
           if (xhr.lengthComputable) {
             const percentComplete = Math.round(xhr.loaded / xhr.total * 100);
             loadingDiv.innerText = `加载锦鲤中… ${percentComplete}%`;
@@ -200,22 +186,16 @@
             loadingDiv.innerText = `加载锦鲤中… ${kbLoaded} KB`;
           }
         },
-        (error) => { // Error callback
+        (error) => {
           console.error('An error happened during GLTF loading:', error);
           loadingDiv.innerHTML = '🚨 <span style="color:yellow;">锦鲤模型加载失败.</span><br>请确保 koi.glb 文件在正确的位置并且网络通畅。<br><small>' + error.message + '</small>';
-          // Optionally, hide loading screen after a delay or provide a retry mechanism
         }
       );
       
-      // Hide loading div if GLTF loader is not used or fails before this point.
-      // This is a fallback if the loader doesn't complete for some reason.
-      // However, the loader's callbacks are the primary place to hide it.
-      if (!loadingDiv.innerText.includes('锦鲤')) { // Only hide if not already handled by GLTF loader
+      if (!loadingDiv.innerText.includes('锦鲤')) {
           // loadingDiv.style.display = 'none'; // Moved to GLTF load success
       }
 
-
-      // Handle window resize
       window.addEventListener('resize', onWindowResize, false);
     }
 
@@ -223,7 +203,6 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
-      // Note: Water texture size doesn't need to be updated on resize typically
     }
 
     function animate() {
@@ -235,11 +214,11 @@
       }
 
       if (water && water.material.uniforms['time']) {
-        water.material.uniforms['time'].value += deltaTime / 2; // Adjust speed of water waves
+        water.material.uniforms['time'].value += deltaTime / 2;
       }
 
       if (controls) {
-        controls.update(); // Required if enableDamping is true
+        controls.update();
       }
 
       renderer.render(scene, camera);
