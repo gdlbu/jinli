@@ -3,17 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>3D 锦鲤池（球状+精灵云 & 发光锦鲤）</title>
+  <title>3D 锦鲤池（球状+精灵云 & 发光锦鲤 + Bloom）</title>
 
-  <!-- es-module-shims polyfill 要在 importmap-shim 之前加载 -->
+  <!-- polyfill for importmap-shim -->
   <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
-
-  <!-- 用 importmap-shim 而不是 importmap -->
   <script type="importmap-shim">
   {
     "imports": {
-      "three":   "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
-      "addons/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/"
+      "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
+      "addons/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/",
+      "addons/postprocessing/EffectComposer.js": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/postprocessing/EffectComposer.js",
+      "addons/postprocessing/RenderPass.js":      "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/postprocessing/RenderPass.js",
+      "addons/postprocessing/UnrealBloomPass.js": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/postprocessing/UnrealBloomPass.js"
     }
   }
   </script>
@@ -26,37 +27,33 @@
       background: #000022;
     }
     #container {
-      width:100%; height:100%;
+      width: 100%; height: 100%;
     }
   </style>
 </head>
 <body>
   <div id="container"></div>
 
-  <!-- 用 module-shim 才会使用 importmap-shim -->
   <script type="module-shim">
-    import * as THREE          from 'three';
-    import { OrbitControls }   from 'addons/controls/OrbitControls.js';
-    import { GLTFLoader }      from 'addons/loaders/GLTFLoader.js';
-    import { Water }           from 'addons/objects/Water.js';
-    import { Sky }             from 'addons/objects/Sky.js';
+    import * as THREE                        from 'three';
+    import { OrbitControls }                 from 'addons/controls/OrbitControls.js';
+    import { GLTFLoader }                    from 'addons/loaders/GLTFLoader.js';
+    import { Water }                         from 'addons/objects/Water.js';
+    import { Sky }                           from 'addons/objects/Sky.js';
+    import { EffectComposer }                from 'addons/postprocessing/EffectComposer.js';
+    import { RenderPass }                    from 'addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass }               from 'addons/postprocessing/UnrealBloomPass.js';
 
-    let scene, camera, renderer, clock, mixer, water;
     const container = document.getElementById('container');
-    clock = new THREE.Clock();
+    let scene, camera, renderer, clock, mixer, water, composer;
 
     init();
     animate();
 
     function init() {
-      // 场景、相机
+      // 场景 & 相机
       scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera(
-        45,
-        container.clientWidth / container.clientHeight,
-        0.1,
-        1000
-      );
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
       camera.position.set(3, 10, 5);
       camera.lookAt(0, 0, 0);
 
@@ -69,12 +66,17 @@
       renderer.setClearColor(0x000022, 1);
       container.appendChild(renderer.domElement);
 
-      // 太阳方向
-      const sunPos = new THREE.Vector3().setFromSphericalCoords(
-        1,
-        Math.PI * 0.48,
-        Math.PI * 0.25
-      );
+      // 后处理 composer + bloom
+      composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
+      const bloom = new UnrealBloomPass(new THREE.Vector2(container.clientWidth, container.clientHeight), 0.5, 0.4, 0.85);
+      composer.addPass(bloom);
+
+      // 时钟
+      clock = new THREE.Clock();
+
+      // 太阳位置（落日）
+      const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.48, Math.PI * 0.25);
 
       // Sky 大气散射
       const sky = new Sky();
@@ -87,32 +89,24 @@
       su.mieDirectionalG.value = 0.9;
       su.sunPosition.value.copy(sunPos);
 
-      // 环境贴图 (PBR)
+      // PBR 环境贴图
       const pmrem = new THREE.PMREMGenerator(renderer);
       scene.environment = pmrem.fromScene(sky).texture;
 
-      // —— 云层球 + 精灵云 —— 
+      // 云层球（背面渲染）
       const cloudTex = new THREE.TextureLoader().load('cloud.png');
-      // 大球云层
-      const cloudSphere = new THREE.Mesh(
-        new THREE.SphereGeometry(500, 32, 15),
-        new THREE.MeshStandardMaterial({
-          map: cloudTex,
-          transparent: true,
-          opacity: 0.5,
-          depthWrite: false,
-          side: THREE.BackSide
-        })
-      );
-      scene.add(cloudSphere);
-
-      // 精灵云
-      const spriteMat = new THREE.SpriteMaterial({
+      const sphereMat = new THREE.MeshStandardMaterial({
         map: cloudTex,
         transparent: true,
-        opacity: 0.6,
-        depthWrite: false
+        opacity: 0.5,
+        depthWrite: false,
+        side: THREE.BackSide
       });
+      const cloudSphere = new THREE.Mesh(new THREE.SphereGeometry(500, 32, 15), sphereMat);
+      scene.add(cloudSphere);
+
+      // 精灵云群
+      const spriteMat = new THREE.SpriteMaterial({ map: cloudTex, transparent: true, opacity: 0.6, depthWrite: false });
       const spriteGroup = new THREE.Group();
       for (let i = 0; i < 50; i++) {
         const sp = new THREE.Sprite(spriteMat);
@@ -132,14 +126,10 @@
       const waterGeo = new THREE.PlaneGeometry(200, 200);
       const waterNormals = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg',
-        tex => {
-          tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-          tex.repeat.set(16, 16);
-        }
+        tex => { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(16, 16); }
       );
       water = new Water(waterGeo, {
-        textureWidth: 2048,
-        textureHeight: 2048,
+        textureWidth: 2048, textureHeight: 2048,
         waterNormals,
         sunDirection: sunPos.clone().normalize(),
         sunColor: 0xFFBB88,
@@ -153,12 +143,12 @@
       water.material.opacity = 0.85;
       scene.add(water);
 
-      // 光照
+      // 光照：暖橙色调
       scene.add(new THREE.HemisphereLight(0xFFAA66, 0x222222, 0.3));
-      const dl = new THREE.DirectionalLight(0xFFBB88, 0.8);
-      dl.position.copy(sunPos).multiplyScalar(50);
-      dl.castShadow = true;
-      scene.add(dl);
+      const dir = new THREE.DirectionalLight(0xFFBB88, 0.8);
+      dir.position.copy(sunPos).multiplyScalar(50);
+      dir.castShadow = true;
+      scene.add(dir);
       const rim = new THREE.DirectionalLight(0xFFFFFF, 0.15);
       rim.position.set(-10, 10, -10);
       scene.add(rim);
@@ -167,8 +157,9 @@
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
 
-      // 锦鲤发光
-      new GLTFLoader().load('koi.glb', gltf => {
+      // 加载锦鲤并增强发光
+      const loader = new GLTFLoader();
+      loader.load('koi.glb', gltf => {
         const fish = gltf.scene;
         fish.rotation.y = Math.PI;
         fish.scale.set(12, 12, 12);
@@ -177,16 +168,24 @@
           if (n.isMesh) {
             n.castShadow = true;
             n.material.emissive.setHex(0x444422);
-            n.material.emissiveIntensity = 2.5;
+            n.material.emissiveIntensity = 3;  // 更强自发光
           }
         });
-        const fishLight = new THREE.PointLight(0xFFFFFF, 1.2, 8);
+        const fishLight = new THREE.PointLight(0xFFFFFF, 1.5, 8);
         fishLight.position.set(0, 2.5, 0);
         fish.add(fishLight);
 
         scene.add(fish);
         mixer = new THREE.AnimationMixer(fish);
         gltf.animations.forEach(a => mixer.clipAction(a).play());
+      });
+
+      // 监听窗口大小变化
+      window.addEventListener('resize', () => {
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        composer.setSize(container.clientWidth, container.clientHeight);
       });
     }
 
@@ -196,7 +195,7 @@
 
       // 云层球旋转
       scene.children.forEach(obj => {
-        if (obj.geometry && obj.geometry.type === 'SphereGeometry') {
+        if (obj.geometry?.type === 'SphereGeometry') {
           obj.rotation.y += dt * 0.001;
         }
       });
@@ -210,9 +209,12 @@
           });
         });
 
+      // 更新动画与水面
       mixer && mixer.update(dt);
       water && (water.material.uniforms.time.value += dt);
-      renderer.render(scene, camera);
+
+      // 渲染（带 bloom）
+      composer.render();
     }
   </script>
 </body>
