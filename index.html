@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池 · 蓝绿色水，水下可见锦鲤</title>
+  <title>3D 锦鲤池 · 可见水下鱼</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
     #loading {
@@ -31,10 +31,9 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'examples/controls/OrbitControls.js';
     import { GLTFLoader }  from 'examples/loaders/GLTFLoader.js';
-    import { Water }       from 'examples/objects/Water.js';
     import { Sky }         from 'examples/objects/Sky.js';
 
-    let scene, camera, renderer, clock, mixer, water;
+    let scene, camera, renderer, clock, mixer;
     const loadingDiv = document.getElementById('loading');
 
     init();
@@ -98,29 +97,23 @@
       sand.rotation.x = -Math.PI/2;
       scene.add(sand);
 
-      // 蓝绿色水面
-      const waterGeo = new THREE.PlaneGeometry(200, 200);
-      const waterNormals = new THREE.TextureLoader().load(
-        'https://threejs.org/examples/textures/waternormals.jpg',
-        tex => { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(16, 16); }
+      // 蓝绿色水面（透明物理材质 Mesh）
+      const waterPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(200, 200),
+        new THREE.MeshPhysicalMaterial({
+          color: 0x1de9b6,       // 蓝绿色
+          transparent: true,
+          opacity: 0.45,         // 透明度
+          roughness: 0.35,
+          metalness: 0.1,
+          reflectivity: 0.7,
+          clearcoat: 1.0,
+          clearcoatRoughness: 0.2
+        })
       );
-      water = new Water(waterGeo, {
-        textureWidth: 2048,
-        textureHeight: 2048,
-        waterNormals,
-        sunDirection: sunPos.clone().normalize(),
-        sunColor: 0xffffff,
-        waterColor: 0x1de9b6, // 蓝绿色
-        distortionScale: 1.15,
-        fog: false
-      });
-      water.rotation.x = -Math.PI/2;
-      water.position.y = 0.1;
-      water.material.transparent = true;
-      water.material.opacity = 0.8;
-      water.material.side = THREE.FrontSide;
-      water.renderOrder = 1;
-      scene.add(water);
+      waterPlane.rotation.x = -Math.PI / 2;
+      waterPlane.position.y = 0.1;
+      scene.add(waterPlane);
 
       // 控制器
       const controls = new OrbitControls(camera, renderer.domElement);
@@ -135,9 +128,8 @@
           mixer = new THREE.AnimationMixer(gltf.scene);
           gltf.animations.forEach(c => mixer.clipAction(c).play());
           gltf.scene.scale.set(12, 12, 12);
-          // 让锦鲤与水面重合（可略微+0.01~0.03）
-          gltf.scene.position.y = water.position.y + 0.05;
-          gltf.scene.renderOrder = 0;
+          // 让锦鲤在水面下（或者略微贴水面，只调Y坐标即可）
+          gltf.scene.position.y = waterPlane.position.y - 0.08;
           gltf.scene.traverse(n => n.isMesh && (n.castShadow = true));
           scene.add(gltf.scene);
           loadingDiv.style.display = 'none';
@@ -165,7 +157,6 @@
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
       mixer && mixer.update(dt);
-      water && water.material.uniforms && (water.material.uniforms.time.value += dt);
       renderer.render(scene, camera);
     }
   </script>
