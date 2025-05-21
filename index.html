@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>3D 锦鲤池（深蓝/碧绿 最终版）</title>
+  <title>3D 锦鲤池（更亮的碧绿水面 & 更深的蓝天）</title>
   <style>
     html, body {
       margin: 0;
@@ -11,8 +11,7 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      /* 最终深蓝背景色 */
-      background: #001E3C;
+      background: #001E3C; /* 深蓝背景 */
     }
     #loading {
       position: fixed;
@@ -60,63 +59,55 @@
         return;
       }
 
-      // —— 场景 & 相机 & 时钟 —— 
+      // 场景 & 相机 & 时钟
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
       camera.position.set(3, 10, 5);
       camera.lookAt(0, 0, 0);
 
-      // —— 渲染器 —— 
-      // 不要透明 alpha，直接用 renderer.clearColor 画背景
+      // 渲染器：线性映射、略高曝光
       renderer = new THREE.WebGLRenderer({ antialias: true, canvas: document.getElementById('canvas') });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.shadowMap.enabled = true;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
-      // 改用 LinearToneMapping 保留原生饱和度
       renderer.toneMapping = THREE.LinearToneMapping;
-      renderer.toneMappingExposure = 1.0;   // 曝光 1.0，不压榨颜色
-      // 直接用深蓝背景色
+      renderer.toneMappingExposure = 1.2;
       renderer.setClearColor(0x001E3C, 1);
 
-      // —— Sky Dome —— 
+      // Sky Dome
       const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
       const su = sky.material.uniforms;
-      su.turbidity.value       = 2;      // 适度大气，保留层次
-      su.rayleigh.value        = 3;      // 加强蓝色散射
+      su.turbidity.value       = 1;    // 减少雾度，保持纯净
+      su.rayleigh.value        = 10;   // 大量蓝光散射
       su.mieCoefficient.value  = 0.005;
-      su.mieDirectionalG.value = 0.8;
-      // 太阳位置：φ=0.2π (~36°) 让蓝色渐变更明显
+      su.mieDirectionalG.value = 0.7;
+      // 太阳位置：中高仰角
       const sunPos = new THREE.Vector3().setFromSphericalCoords(
         1,
-        Math.PI * 0.2,
+        Math.PI * 0.15,  // 仰角 ≈27°
         Math.PI * 0.25
       );
       su.sunPosition.value.copy(sunPos);
 
-      // —— 环境贴图（PBR 光照用） —— 
+      // 环境贴图（PBR 用），不作背景
       const pmremGen = new THREE.PMREMGenerator(renderer);
-      const envMap = pmremGen.fromScene(sky).texture;
-      scene.environment = envMap;
-      // 不要设置 scene.background
+      scene.environment = pmremGen.fromScene(sky).texture;
 
       loadingDiv.style.display = 'none';
 
-      // —— 光照 —— 
-      const hemi = new THREE.HemisphereLight(0xffffff, 0x222222, 0.3);
-      scene.add(hemi);
-      const dir = new THREE.DirectionalLight(0xffffff, 0.6);
+      // 光照：更亮的半球光和太阳光
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.7));
+      const dir = new THREE.DirectionalLight(0xffffff, 1.0);
       dir.position.copy(sunPos).multiplyScalar(50);
       dir.castShadow = true;
       scene.add(dir);
-      const rim = new THREE.DirectionalLight(0xffffff, 0.2);
-      rim.position.set(-10, 10, -10);
-      scene.add(rim);
+      scene.add(new THREE.DirectionalLight(0xffffff, 0.2).setPosition(-10,10,-10));
 
-      // —— 地面（沙底） —— 
+      // 地面
       const sand = new THREE.Mesh(
         new THREE.PlaneGeometry(200, 200),
         new THREE.MeshStandardMaterial({ color: 0xDDCBA0, roughness: 1 })
@@ -124,63 +115,49 @@
       sand.rotation.x = -Math.PI/2;
       scene.add(sand);
 
-      // —— 水面（碧绿加深） —— 
+      // 水面：更亮的碧绿色
       const waterGeo = new THREE.PlaneGeometry(200, 200);
-      const waterNormals = new THREE.TextureLoader().load(
+      const normalTex = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg',
-        tex => {
-          tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-          tex.repeat.set(16, 16);
-        }
+        tex => { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(16,16); }
       );
       water = new Water(waterGeo, {
         textureWidth: 2048,
         textureHeight: 2048,
-        waterNormals,
+        waterNormals: normalTex,
         sunDirection: sunPos.clone().normalize(),
         sunColor: 0xffffff,
-        waterColor: 0x006644,    // 深碧绿色
+        waterColor: 0x00CC88,   // 提升亮度和饱和度
         distortionScale: 3.2,
         fog: false
       });
       water.rotation.x = -Math.PI/2;
       water.position.y = 0.1;
       water.material.transparent = true;
-      water.material.opacity = 0.9;
+      water.material.opacity = 0.8;
       scene.add(water);
 
-      // —— 控制器 —— 
+      // 控制器 & 模型加载
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
 
-      // —— 加载锦鲤模型 —— 
-      const loader = new GLTFLoader();
-      loader.load(
-        'koi.glb',
-        gltf => {
-          gltf.scene.rotation.y = Math.PI;
-          mixer = new THREE.AnimationMixer(gltf.scene);
-          gltf.animations.forEach(c => mixer.clipAction(c).play());
-          gltf.scene.scale.set(12, 12, 12);
-          gltf.scene.position.y = 1.5;
-          gltf.scene.traverse(n => n.isMesh && (n.castShadow = true));
-          scene.add(gltf.scene);
-        },
-        xhr => {
-          if (xhr.lengthComputable) {
-            const pct = Math.round(xhr.loaded / xhr.total * 100);
-            loadingDiv.innerText = `加载中… ${pct}%`;
-          } else {
-            const kb = (xhr.loaded / 1024).toFixed(1);
-            loadingDiv.innerText = `加载中… ${kb} KB`;
-          }
-        },
-        err => loadingDiv.innerText = '🚨 模型加载失败'
-      );
+      new GLTFLoader().load('koi.glb', gltf => {
+        gltf.scene.rotation.y = Math.PI;
+        mixer = new THREE.AnimationMixer(gltf.scene);
+        gltf.animations.forEach(a => mixer.clipAction(a).play());
+        gltf.scene.scale.set(12,12,12);
+        gltf.scene.position.y = 1.5;
+        gltf.scene.traverse(n => n.isMesh && (n.castShadow = true));
+        scene.add(gltf.scene);
+      }, xhr => {
+        if (xhr.lengthComputable) {
+          loadingDiv.innerText = `加载中… ${Math.round(xhr.loaded/xhr.total*100)}%`;
+        }
+      }, () => loadingDiv.innerText = '🚨 模型加载失败');
 
-      // —— 响应式 —— 
+      // 自适应
       window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.aspect = window.innerWidth/window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
       });
@@ -189,7 +166,7 @@
     function animate() {
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
-      if (mixer) mixer.update(dt);
+      mixer && mixer.update(dt);
       if (water && water.material.uniforms) {
         water.material.uniforms.time.value += dt;
       }
