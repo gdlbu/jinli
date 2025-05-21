@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池（相机(3,10,5)，鱼头朝向 -Z）</title>
+  <title>3D 锦鲤池 · 蓝天碧海风格</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
     #loading {
@@ -60,49 +60,45 @@
       renderer.shadowMap.enabled = true;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.7;  // ★ 亮度适中，天不白
-      renderer.setClearColor(0x0077be, 1);
+      renderer.toneMappingExposure = 0.95;   // 更亮一些但不死白
+      renderer.setClearColor(0x87ceeb, 1);
 
-      // Sky Dome（自然湛蓝参数！）
+      // Sky Dome — 蓝天碧海参数
       const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
       const su = sky.material.uniforms;
-      su.turbidity.value = 6;           // 4~8之间最自然
-      su.rayleigh.value = 2.5;          // 2~3之间自然偏蓝
-      su.mieCoefficient.value = 0.005;  // 保持小值
-      su.mieDirectionalG.value = 0.7;   // 一般默认0.7
-      const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.42, Math.PI * 0.25);
-      // θ=0.42π ≈ 75°，太阳有点高但不是正午
+      su.turbidity.value = 2.2;         // 极清澈大气
+      su.rayleigh.value = 3.2;          // 偏青蓝，饱和
+      su.mieCoefficient.value = 0.002;  // 阳光通透
+      su.mieDirectionalG.value = 0.78;  // 阳光更集中
+      const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.29, Math.PI * 0.23);
       su.sunPosition.value.copy(sunPos);
 
       // 环境贴图 & 背景
       const pmremGen = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGen.fromScene(sky).texture;
       scene.environment = envMap;
-      scene.background = sky; // 直接用Sky
+      scene.background = sky;
 
       loadingDiv.style.display = 'none';
 
       // 光照
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x92b6ff, 0.45));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.95);
       dirLight.position.copy(sunPos).multiplyScalar(50);
       dirLight.castShadow = true;
       scene.add(dirLight);
-      const rimLight = new THREE.DirectionalLight(0xffffff, 0.3);
-      rimLight.position.set(-10, 10, -10);
-      scene.add(rimLight);
 
-      // 沙底
+      // 沙底（极浅色）
       const sand = new THREE.Mesh(
         new THREE.PlaneGeometry(200, 200),
-        new THREE.MeshStandardMaterial({ color: 0xDDCBA0, roughness: 1 })
+        new THREE.MeshStandardMaterial({ color: 0xf6f8f7, roughness: 0.45 })
       );
       sand.rotation.x = -Math.PI/2;
       scene.add(sand);
 
-      // 果冻海水面
+      // 清澈浅蓝水面
       const waterGeo = new THREE.PlaneGeometry(200, 200);
       const waterNormals = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg',
@@ -114,14 +110,14 @@
         waterNormals,
         sunDirection: sunPos.clone().normalize(),
         sunColor: 0xffffff,
-        waterColor: 0x40E0D0,
-        distortionScale: 3.2,
+        waterColor: 0x50e5ff,         // 超浅蓝青
+        distortionScale: 2.0,         // 光影适中
         fog: false
       });
       water.rotation.x = -Math.PI/2;
       water.position.y = 0.1;
       water.material.transparent = true;
-      water.material.opacity = 0.95;
+      water.material.opacity = 0.88;
       scene.add(water);
 
       // 控制器
