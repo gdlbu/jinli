@@ -165,7 +165,7 @@
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
       mixer && mixer.update(dt);
-      water && water.material.uniforms && (water.material.uniforms.time.value += dt);
+      water && water.material.uniforms && (water.material.uniforms.time.value += dt*.4);
       renderer.render(scene, camera);
     }
   </script>
