@@ -31,6 +31,7 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'examples/controls/OrbitControls.js';
     import { GLTFLoader }  from 'examples/loaders/GLTFLoader.js';
+    import { RGBELoader }   from 'examples/loaders/RGBELoader.js';
     import { Water }        from 'examples/objects/Water.js';
     import { Sky }          from 'examples/objects/Sky.js';
 
@@ -69,6 +70,7 @@
       const sun = new THREE.Vector3();
       sun.setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
       sky.material.uniforms['sunPosition'].value.copy(sun);
+      // 将天空渲染为环境贴图，用于反射
       const envMap = pmremGenerator.fromScene(sky).texture;
       scene.environment = envMap;
 
@@ -79,11 +81,12 @@
       dirLight.castShadow = true;
       dirLight.shadow.mapSize.set(2048, 2048);
       scene.add(dirLight);
+      // 侧面轮廓补光
       const rimLight = new THREE.DirectionalLight(0xffffff, 0.3);
       rimLight.position.set(-10, 10, -10);
       scene.add(rimLight);
 
-      // 地面与水面
+      // 地面与浅碧湖水
       const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(200,200),
         new THREE.MeshStandardMaterial({ color: 0xDDCBA0 })
@@ -98,13 +101,11 @@
       water = new Water(waterGeo, {
         textureWidth: 512,
         textureHeight: 512,
-        waterNormals,
+        waterNormals: waterNormals,
         sunDirection: sun.clone().normalize(),
         sunColor: 0xffffff,
-        // 调整湖水颜色为更深的天然蓝绿
-        waterColor: 0x006994,
-        // 增强水面波动，让反射更生动
-        distortionScale: 3.0,
+        waterColor: 0x1EB980,
+        distortionScale: 1.5,
         fog: scene.fog !== undefined
       });
       water.rotation.x = -Math.PI/2;
@@ -116,18 +117,19 @@
       controls.enableDamping = true;
       controls.maxPolarAngle = Math.PI/2 - 0.1;
 
-      // 加载锦鲤模型 (请确保 koi.glb 与此 HTML 同目录)
+      // 加载锦鲤模型
       const loader = new GLTFLoader();
       loader.load(
-        'koi.glb',
+        `${window.location.origin}/koi.glb`,
         gltf => {
           loadingDiv.style.display = 'none';
           const model = gltf.scene;
-          model.scale.set(12,12,12);
+          model.scale.set(12, 12, 12);
           model.position.y = 1.5;
           model.traverse(n => {
             if (n.isMesh && n.material.isMeshStandardMaterial) {
               n.castShadow = true;
+              // 增强材质反射与高光
               n.material.metalness = 0.2;
               n.material.roughness = 0.1;
               n.material.envMapIntensity = 1.5;
@@ -140,7 +142,7 @@
           gltf.animations.forEach(clip => mixer.clipAction(clip).play());
 
           window.addEventListener('pointerdown', () => {
-            const flee = gltf.animations.find(c => /flee/i.test(c.name));
+            const flee = gltf.animations.find(c=>/flee/i.test(c.name));
             if (flee) {
               const action = mixer.clipAction(flee);
               action.reset().play();
@@ -155,7 +157,7 @@
         },
         err => {
           console.error('加载错误：', err);
-          loadingDiv.innerText = `🚨 加载失败：${err.message || err}`;
+          loadingDiv.innerText = `🚨 加载失败：${err.message||err}`;
         }
       );
 
