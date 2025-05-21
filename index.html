@@ -102,7 +102,7 @@
       const waterPlane = new THREE.Mesh(
         new THREE.PlaneGeometry(200, 200, 256, 256),
         new THREE.MeshPhysicalMaterial({
-          color: 0x087c74, // 更深蓝绿色
+          color: 0x159e9c, // 更深蓝绿色
           transparent: true,
           opacity: 0.29,   // 深水感，若太深可调高至0.33
           roughness: 0.36,
@@ -131,7 +131,7 @@
           mixer = new THREE.AnimationMixer(gltf.scene);
           gltf.animations.forEach(c => mixer.clipAction(c).play());
           gltf.scene.scale.set(12, 12, 12);
-          gltf.scene.position.y = 1.3; // 水面2.0，鱼在水下
+          gltf.scene.position.y = waterPlane.position.y+0.02; // 水面2.0，鱼在水下
           gltf.scene.traverse(n => n.isMesh && (n.castShadow = true));
           scene.add(gltf.scene);
           loadingDiv.style.display = 'none';
