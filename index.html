@@ -51,13 +51,12 @@
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
-      // 初始俯视视角：摄像机位于鱼头上方并俯视
-      camera.position.set(0, 0, 20);
-      // 使用默认 up 向量
-      camera.position.set(0, 0, 20);
+      // 初始俯视：摄像机置于鱼身正上方
+      camera.position.set(0, 20, 0); // Y 轴正方向上方
+      camera.up.set(0, 0, 1);         // 设定世界 Z 轴为屏幕上方，使鱼头（正 Z 方向）指向上方
       camera.lookAt(0, 0, 0);(0, 0, 0);
       // 初始旋转视图，使鱼头指向屏幕上方
-      // camera.rotateZ(Math.PI / 2); // 移除 roll 旋转，改用 camera.up 定义初始方向
+      //  // 移除 roll 旋转，改用 camera.up 定义初始方向
 
        // 初始时旋转视图，使鱼头朝屏幕上方
 
@@ -149,6 +148,8 @@
           gltf.scene.scale.set(12, 12, 12);
           gltf.scene.position.y = 1.5;
                     // 不对鱼模型进行旋转，保留原始方向
+                    // 初始将鱼模型绕 X 轴旋转 90°，使鱼头朝向屏幕上方
+          gltf.scene.rotation.x = Math.PI / 2;
           scene.add(gltf.scene);
         },
         xhr => {
