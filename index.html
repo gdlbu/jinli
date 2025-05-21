@@ -1,23 +1,18 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>3D 锦鲤池（更亮碧绿水面 & 深邃蓝天，已修复）</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>3D 锦鲤池（相机(3,10,5)，鱼头朝向 -Z）- 天空修复</title>
   <style>
-    html, body {
-      margin: 0; padding: 0;
-      width: 100%; height: 100%;
-      overflow: hidden;
-      background: #001E3C;
-    }
+    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; /* Initial background, will be overridden by sky */ }
     #loading {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      display: flex; align-items: center; justify-content: center;
-      font-family: sans-serif; font-size: 1.2em; color: #fff;
-      background: #0077be; z-index: 100;
+      position:fixed; top:0; left:0; right:0; bottom:0;
+      display:flex; align-items:center; justify-content:center;
+      font-family:sans-serif; font-size:1.2em; color:#fff;
+      background:#0077be; z-index:100;
     }
-    canvas { display: block; }
+    canvas { display:block; }
   </style>
   <script type="importmap">
   {
@@ -39,128 +34,214 @@
     import { Water }       from 'examples/objects/Water.js';
     import { Sky }         from 'examples/objects/Sky.js';
 
-    let scene, camera, renderer, clock, mixer, water;
+    let scene, camera, renderer, clock, mixer, water, controls;
     const loadingDiv = document.getElementById('loading');
 
     init();
     animate();
 
     function init() {
+      // Check if running via file protocol, which can cause issues with module loading or asset paths.
       if (window.location.protocol === 'file:') {
-        loadingDiv.innerText = '⚠️ 请通过 HTTP 服务器打开此页面';
-        return;
+        loadingDiv.innerText = '⚠️ 请通过 HTTP 服务器打开此页面 (例如使用 VS Code Live Server)';
+        // return; // Commenting out to allow attempt to run, but warning is important.
       }
 
-      // 场景、相机、时钟
+      // Scene & Clock & Camera
       scene = new THREE.Scene();
       clock = new THREE.Clock();
-      camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 20000); // Increased far plane for sky
+      // Position camera at (3, 10, 5), looking down at the origin
       camera.position.set(3, 10, 5);
       camera.lookAt(0, 0, 0);
 
-      // 渲染器
-      renderer = new THREE.WebGLRenderer({ antialias: true, canvas: document.getElementById('canvas') });
+      // Renderer
+      const canvas = document.getElementById('canvas');
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas: canvas });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.shadowMap.enabled = true;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
-      renderer.toneMapping = THREE.LinearToneMapping;
-      renderer.toneMappingExposure = 1.2;
-      renderer.setClearColor(0x001E3C, 1);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 0.7; // Adjusted exposure slightly
+      // No need for renderer.setClearColor if scene.background is set by sky
 
       // Sky Dome
       const sky = new Sky();
-      sky.scale.setScalar(10000);
+      sky.scale.setScalar(10000); // Make sky dome large enough
       scene.add(sky);
-      const su = sky.material.uniforms;
-      su.turbidity.value      = 1;
-      su.rayleigh.value       = 10;
-      su.mieCoefficient.value = 0.005;
-      su.mieDirectionalG.value= 0.7;
-      const sunPos = new THREE.Vector3().setFromSphericalCoords(
-        1, Math.PI * 0.15, Math.PI * 0.25
-      );
-      su.sunPosition.value.copy(sunPos);
 
-      // 环境贴图(PBR)
-      const pmremGen = new THREE.PMREMGenerator(renderer);
-      scene.environment = pmremGen.fromScene(sky).texture;
+      const skyUniforms = sky.material.uniforms;
+      // Adjusted sky parameters for a more natural blue sky
+      skyUniforms['turbidity'].value = 10;    // Default: 10, User: 0.2
+      skyUniforms['rayleigh'].value = 2;     // Default: 2 or 3, User: 12
+      skyUniforms['mieCoefficient'].value = 0.005; // Default: 0.005, User: 0.0005
+      skyUniforms['mieDirectionalG'].value = 0.8;  // Default: 0.8, User: 0.9
 
-      loadingDiv.style.display = 'none';
+      // Sun position: Lowered the sun for more color
+      // phi: polar angle from zenith (0 to PI). PI * 0.5 is horizon.
+      // theta: azimuthal angle around Y axis (0 to 2PI).
+      // Math.PI * 0.4 (72 deg from zenith) -> 18 deg elevation
+      // Math.PI * 0.15 (27 deg from zenith) -> 63 deg elevation (original, quite high)
+      const sunPosition = new THREE.Vector3();
+      const phi = THREE.MathUtils.degToRad(90 - 25); // Sun elevation: 25 degrees from horizon
+      const theta = THREE.MathUtils.degToRad(180);    // Sun azimuth: from the south (can be adjusted)
+      sunPosition.setFromSphericalCoords(1, phi, theta);
+      skyUniforms['sunPosition'].value.copy(sunPosition);
 
-      // 光照
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.7));
-      const dir = new THREE.DirectionalLight(0xffffff, 1.0);
-      dir.position.copy(sunPos).multiplyScalar(50);
-      dir.castShadow = true;
-      scene.add(dir);
 
-      // 修复 setPosition 错误：用 position.set
-      const rim = new THREE.DirectionalLight(0xffffff, 0.2);
-      rim.position.set(-10, 10, -10);
-      scene.add(rim);
+      // Environment Map & Background (Generated from the sky)
+      const pmremGenerator = new THREE.PMREMGenerator(renderer);
+      const envMap = pmremGenerator.fromScene(sky).texture;
+      scene.environment = envMap;
+      scene.background = envMap; // Set scene background to the skybox
+      pmremGenerator.dispose(); // Dispose of generator after use
 
-      // 地面
-      const sand = new THREE.Mesh(
-        new THREE.PlaneGeometry(200, 200),
-        new THREE.MeshStandardMaterial({ color: 0xDDCBA0, roughness: 1 })
-      );
-      sand.rotation.x = -Math.PI/2;
+
+      // Lighting
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.5)); // Slightly increased intensity
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); // Slightly increased intensity
+      // Set directional light to follow the sun's position for consistency
+      dirLight.position.copy(sunPosition).multiplyScalar(50);
+      dirLight.castShadow = true;
+      // Configure shadow properties for better quality
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.camera.near = 0.5;
+      dirLight.shadow.camera.far = 500;
+      dirLight.shadow.camera.left = -100;
+      dirLight.shadow.camera.right = 100;
+      dirLight.shadow.camera.top = 100;
+      dirLight.shadow.camera.bottom = -100;
+      scene.add(dirLight);
+
+      // Optional: Rim light (can be subtle)
+      // const rimLight = new THREE.DirectionalLight(0xffffff, 0.2);
+      // rimLight.position.set(-10, 10, -10);
+      // scene.add(rimLight);
+
+      // Sand Bottom
+      const sandMaterial = new THREE.MeshStandardMaterial({ color: 0xDDCBA0, roughness: 1 });
+      const sandGeometry = new THREE.PlaneGeometry(200, 200);
+      const sand = new THREE.Mesh(sandGeometry, sandMaterial);
+      sand.rotation.x = -Math.PI / 2;
+      sand.receiveShadow = true; // Sand should receive shadows
       scene.add(sand);
 
-      // 水面
-      const waterGeo = new THREE.PlaneGeometry(200, 200);
-      const normalTex = new THREE.TextureLoader().load(
+      // Water Surface
+      const waterGeometry = new THREE.PlaneGeometry(200, 200);
+      const waterNormalsTexture = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg',
-        tex => { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(16,16); }
+        (texture) => {
+          texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+          texture.repeat.set(16, 16); // Adjust tiling for desired wave scale
+        }
       );
-      water = new Water(waterGeo, {
-        textureWidth: 2048, textureHeight: 2048,
-        waterNormals: normalTex,
-        sunDirection: sunPos.clone().normalize(),
+
+      water = new Water(waterGeometry, {
+        textureWidth: 1024, // Can be 512 or 1024 for performance
+        textureHeight: 1024,
+        waterNormals: waterNormalsTexture,
+        sunDirection: sunPosition.clone().normalize(), // Use the same sun direction
         sunColor: 0xffffff,
-        waterColor: 0x00CC88,
-        distortionScale: 3.2,
-        fog: false
+        waterColor: 0x004a7f, // Adjusted water color for a deeper blue
+        distortionScale: 3.7, // Keep or adjust as preferred
+        fog: scene.fog !== undefined // Use scene fog if available
       });
-      water.rotation.x = -Math.PI/2;
-      water.position.y = 0.1;
-      water.material.transparent = true;
-      water.material.opacity = 0.8;
+      water.rotation.x = -Math.PI / 2;
+      water.position.y = 0.1; // Ensure it's slightly above the sand
+      // Water material properties
+      // water.material.transparent = true; // Water class handles transparency
+      // water.material.opacity = 0.9; // Adjust opacity if needed, often handled by Water class
       scene.add(water);
 
-      // 控制器 & 模型
-      const controls = new OrbitControls(camera, renderer.domElement);
+      // OrbitControls
+      controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.minDistance = 5;
+      controls.maxDistance = 100;
+      controls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent camera from going below ground
+      controls.target.set(0, 1, 0); // Target slightly above origin if fish is there
+      controls.update();
 
-      new GLTFLoader().load('koi.glb', gltf => {
-        gltf.scene.rotation.y = Math.PI;
-        mixer = new THREE.AnimationMixer(gltf.scene);
-        gltf.animations.forEach(a => mixer.clipAction(a).play());
-        gltf.scene.scale.set(12,12,12);
-        gltf.scene.position.y = 1.5;
-        gltf.scene.traverse(n => n.isMesh && (n.castShadow = true));
-        scene.add(gltf.scene);
-      }, xhr => {
-        if (xhr.lengthComputable) {
-          loadingDiv.innerText = `加载中… ${Math.round(xhr.loaded/xhr.total*100)}%`;
+      // GLTF Loader for Koi Fish
+      const loader = new GLTFLoader();
+      // IMPORTANT: Replace 'koi.glb' with the correct path to your model if it's not in the same directory.
+      // For testing, you can use a placeholder or ensure koi.glb is accessible.
+      // If koi.glb is not found, the loading will fail.
+      loader.load(
+        'koi.glb', // Ensure this path is correct
+        (gltf) => {
+          const fishModel = gltf.scene;
+          // Rotate fish: local +Z (fish head) -> global -Z
+          fishModel.rotation.y = Math.PI;
+          mixer = new THREE.AnimationMixer(fishModel);
+          gltf.animations.forEach((clip) => {
+            mixer.clipAction(clip).play();
+          });
+          fishModel.scale.set(12, 12, 12);
+          fishModel.position.y = 1.5; // Adjust Y position based on water level and fish size
+          fishModel.traverse((node) => {
+            if (node.isMesh) {
+              node.castShadow = true;
+              node.receiveShadow = false; // Fish usually don't receive shadows on themselves much
+            }
+          });
+          scene.add(fishModel);
+          loadingDiv.style.display = 'none'; // Hide loading screen once model is loaded
+        },
+        (xhr) => { // Progress callback
+          if (xhr.lengthComputable) {
+            const percentComplete = Math.round(xhr.loaded / xhr.total * 100);
+            loadingDiv.innerText = `加载锦鲤中… ${percentComplete}%`;
+          } else {
+            const kbLoaded = (xhr.loaded / 1024).toFixed(1);
+            loadingDiv.innerText = `加载锦鲤中… ${kbLoaded} KB`;
+          }
+        },
+        (error) => { // Error callback
+          console.error('An error happened during GLTF loading:', error);
+          loadingDiv.innerHTML = '🚨 <span style="color:yellow;">锦鲤模型加载失败.</span><br>请确保 koi.glb 文件在正确的位置并且网络通畅。<br><small>' + error.message + '</small>';
+          // Optionally, hide loading screen after a delay or provide a retry mechanism
         }
-      }, () => loadingDiv.innerText = '🚨 模型加载失败');
+      );
+      
+      // Hide loading div if GLTF loader is not used or fails before this point.
+      // This is a fallback if the loader doesn't complete for some reason.
+      // However, the loader's callbacks are the primary place to hide it.
+      if (!loadingDiv.innerText.includes('锦鲤')) { // Only hide if not already handled by GLTF loader
+          // loadingDiv.style.display = 'none'; // Moved to GLTF load success
+      }
 
-      window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth/window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
+
+      // Handle window resize
+      window.addEventListener('resize', onWindowResize, false);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      // Note: Water texture size doesn't need to be updated on resize typically
     }
 
     function animate() {
       requestAnimationFrame(animate);
-      const dt = clock.getDelta();
-      mixer && mixer.update(dt);
-      if (water && water.material.uniforms) {
-        water.material.uniforms.time.value += dt;
+      const deltaTime = clock.getDelta();
+
+      if (mixer) {
+        mixer.update(deltaTime);
       }
+
+      if (water && water.material.uniforms['time']) {
+        water.material.uniforms['time'].value += deltaTime / 2; // Adjust speed of water waves
+      }
+
+      if (controls) {
+        controls.update(); // Required if enableDamping is true
+      }
+
       renderer.render(scene, camera);
     }
   </script>
