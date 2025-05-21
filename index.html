@@ -135,7 +135,7 @@
           mixer = new THREE.AnimationMixer(gltf.scene);
           gltf.animations.forEach(c => mixer.clipAction(c).play());
           gltf.scene.scale.set(12, 12, 12);
-          gltf.scene.position.y = water.position.y+0.05;
+          gltf.scene.position.y = water.position.y+0.1;
           gltf.scene.traverse(n => n.isMesh && (n.castShadow = true));
           scene.add(gltf.scene);
           loadingDiv.style.display = 'none';
