@@ -60,45 +60,47 @@
       renderer.shadowMap.enabled = true;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.62;   // 天空更蓝
-      renderer.setClearColor(0x87ceeb, 1);
+      renderer.toneMappingExposure = 0.6;
+      renderer.setClearColor(0x0077be, 1);
 
-      // Sky Dome — 极蓝天
+      // Sky Dome - 修改这里的参数使天空变蓝
       const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
       const su = sky.material.uniforms;
-      su.turbidity.value = 2.0;
-      su.rayleigh.value = 6.0;
-      su.mieCoefficient.value = 0.0015;
-      su.mieDirectionalG.value = 0.8;
-      const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.31, Math.PI * 0.22);
+      su.turbidity.value       = 10;    // 增加浑浊度
+      su.rayleigh.value        = 2;     // 减小瑞利散射参数
+      su.mieCoefficient.value  = 0.005; // 增加米氏散射系数
+      su.mieDirectionalG.value = 0.8;   // 调整米氏散射方向性
+      const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
       su.sunPosition.value.copy(sunPos);
 
       // 环境贴图 & 背景
       const pmremGen = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGen.fromScene(sky).texture;
       scene.environment = envMap;
-      scene.background = sky;
-
+      scene.background = envMap;
       loadingDiv.style.display = 'none';
 
       // 光照
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x8de3bf, 0.50));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.95);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.copy(sunPos).multiplyScalar(50);
       dirLight.castShadow = true;
       scene.add(dirLight);
+      const rimLight = new THREE.DirectionalLight(0xffffff, 0.3);
+      rimLight.position.set(-10, 10, -10);
+      scene.add(rimLight);
 
-      // 沙底（极浅微黄白）
+      // 沙底
       const sand = new THREE.Mesh(
         new THREE.PlaneGeometry(200, 200),
-        new THREE.MeshStandardMaterial({ color: 0xfafcf6, roughness: 0.32 })
+        new THREE.MeshStandardMaterial({ color: 0xDDCBA0, roughness: 1 })
       );
       sand.rotation.x = -Math.PI/2;
       scene.add(sand);
 
-      // 蓝绿色水面
+      // 果冻海水面
       const waterGeo = new THREE.PlaneGeometry(200, 200);
       const waterNormals = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg',
@@ -110,14 +112,14 @@
         waterNormals,
         sunDirection: sunPos.clone().normalize(),
         sunColor: 0xffffff,
-        waterColor: 0x40E0D0,    // 蓝绿色
-        distortionScale: 1.15,
+        waterColor: 0x40E0D0,
+        distortionScale: 3.2,
         fog: false
       });
       water.rotation.x = -Math.PI/2;
       water.position.y = 0.1;
       water.material.transparent = true;
-      water.material.opacity = 0.8;
+      water.material.opacity = 0.95;
       scene.add(water);
 
       // 控制器
