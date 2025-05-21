@@ -51,7 +51,7 @@
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
       camera.position.set(0, 8, 20);
 
-      renderer = new THREE.WebGLRenderer({ antialias:true, canvas: document.getElementById('canvas') });
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas: document.getElementById('canvas') }); // 启用 alpha 以显示背景
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.shadowMap.enabled = true;
@@ -80,6 +80,7 @@
       const pmremGen = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGen.fromScene(sky).texture;
       scene.environment = envMap;
+      scene.background = envMap; // 使用 envMap 作为背景，让天空可见
       // 使用环境贴图作为背景，确保天空HDR可见
       
 
