@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池（碧海蓝天 + 果冻海玻璃海）</title>
+  <title>3D 锦鲤池（修复新版 three.js 输出色彩设置）</title>
   <style>
-    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
+    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background: #87CEEB; }
     #loading {
       position:fixed; top:0; left:0; right:0; bottom:0;
       display:flex; align-items:center; justify-content:center;
@@ -30,98 +30,91 @@
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'examples/controls/OrbitControls.js';
-    import { GLTFLoader }  from 'examples/loaders/GLTFLoader.js';
-    import { Water }       from 'examples/objects/Water.js';
-    import { Sky }         from 'examples/objects/Sky.js';
+    import { GLTFLoader } from 'examples/loaders/GLTFLoader.js';
+    import { Water } from 'examples/objects/Water.js';
+    import { Sky } from 'examples/objects/Sky.js';
 
     let scene, camera, renderer, clock, mixer, water;
     const loadingDiv = document.getElementById('loading');
-    const canvas     = document.getElementById('canvas');
 
     init();
     animate();
 
     function init() {
       if (window.location.protocol === 'file:') {
-        loadingDiv.innerText = '⚠️ 请通过 HTTP 服务器（如 python -m http.server）打开此页面';
+        loadingDiv.innerText = '⚠️ 请通过 HTTP 服务器打开此页面';
         return;
       }
 
-      // 场景与相机
+      // 场景、时钟、相机初始化
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
-      // 初始俯视视角：鱼头朝上（位于鱼头前方并俯视）
-      camera.position.set(0, 0, 20); // 沿Z轴正方向俯视
-      // 设置摄像机上方向为世界 Z 轴正方向
-      camera.up.set(0, 0, 1);         // 设定Y轴为屏幕上方向，保证鱼头朝上
-      camera.lookAt(0, 0, 0);
+      camera.position.set(0, 8, 20);
 
-      renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+      // 渲染器初始化，启用 alpha 通道
+      renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, canvas: document.getElementById('canvas') });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.shadowMap.enabled = true;
-      renderer.outputEncoding = THREE.sRGBEncoding;
+      // 新版 three.js: 使用 outputColorSpace 替代已移除的 outputEncoding
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.6; // 降低曝光
-      //renderer.setClearColor(0x87CEEB); // Removed to use HDR sky background
+      renderer.toneMappingExposure = 0.6;
+      renderer.setClearColor(0x0077be, 1);
 
-
-      // Sky Dome
+      // Sky: 碧海蓝天设置
       const sky = new Sky();
       sky.scale.setScalar(10000);
-      sky.material.side = THREE.BackSide; // 渲染内侧
       scene.add(sky);
       const su = sky.material.uniforms;
       su['turbidity'].value = 0.2;
       su['rayleigh'].value = 12;
       su['mieCoefficient'].value = 0.0005;
       su['mieDirectionalG'].value = 0.9;
-      const sunP = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.15, Math.PI * 0.25);
-      su['sunPosition'].value.copy(sunP);
+      const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.15, Math.PI * 0.25);
+      su['sunPosition'].value.copy(sunPos);
 
-      // 环境贴图
+      // 环境贴图用于反射，并设为背景
       const pmremGen = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGen.fromScene(sky).texture;
       scene.environment = envMap;
-      // 使用环境贴图作为背景显示深邃天空
       scene.background = envMap;
-      // 一旦背景渲染完成，移除加载遮罩
+      // 加载完背景后立即隐藏遮罩，显示天空和水面
       loadingDiv.style.display = 'none';
 
-      // 光照
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.3));
+      // 光照设置
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.copy(sunP).multiplyScalar(50);
+      dirLight.position.copy(sunPos).multiplyScalar(50);
       dirLight.castShadow = true;
       scene.add(dirLight);
-      const rimLight = new THREE.DirectionalLight(0xffffff, 0.3);
-      rimLight.position.set(-10, 10, -10);
-      scene.add(rimLight);
+      const rim = new THREE.DirectionalLight(0xffffff, 0.3);
+      rim.position.set(-10,10,-10);
+      scene.add(rim);
 
-      // 沙底
+      // 底部沙地
       const sand = new THREE.Mesh(
-        new THREE.PlaneGeometry(200, 200),
-        new THREE.MeshStandardMaterial({ color: 0xDDCBA0, roughness: 1 })
+        new THREE.PlaneGeometry(200,200),
+        new THREE.MeshStandardMaterial({ color:0xDDCBA0, roughness:1 })
       );
       sand.rotation.x = -Math.PI/2;
       scene.add(sand);
 
-      // 果冻海水面
-      const waterGeo = new THREE.PlaneGeometry(200, 200);
-      const waterNormals = new THREE.TextureLoader().load(
+      // 果冻海玻璃海水面
+      const waterGeo = new THREE.PlaneGeometry(200,200);
+      const normalTex = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg',
-        tex => { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(16, 16); }
+        tex=>{ tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(16,16); }
       );
       water = new Water(waterGeo, {
-        textureWidth: 2048,
-        textureHeight: 2048,
-        waterNormals,
-        sunDirection: sunP.clone().normalize(),
-        sunColor: 0xffffff,
-        waterColor: 0x00FA9A, // 浅春绿色
-        distortionScale: 3.0,
-        fog: false
+        textureWidth:2048, textureHeight:2048,
+        waterNormals:normalTex,
+        sunDirection:sunPos.clone().normalize(),
+        sunColor:0xffffff,
+        waterColor:0x40E0D0,
+        distortionScale:3.2,
+        fog:false
       });
       water.rotation.x = -Math.PI/2;
       water.position.y = 0.1;
@@ -133,44 +126,39 @@
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
 
-      // 模型加载与进度
+      // 加载锦鲤模型并显示进度
       const loader = new GLTFLoader();
       loader.load(
         'koi.glb',
-        gltf => {
+        gltf=>{
           loadingDiv.style.display = 'none';
           mixer = new THREE.AnimationMixer(gltf.scene);
-          gltf.animations.forEach(c => mixer.clipAction(c).play());
-          gltf.scene.scale.set(12, 12, 12);
+          gltf.animations.forEach(c=>mixer.clipAction(c).play());
+          gltf.scene.scale.set(12,12,12);
           gltf.scene.position.y = 1.5;
-          gltf.scene.traverse(n => n.isMesh && (n.castShadow = true));
+          gltf.scene.traverse(n=>n.isMesh&&(n.castShadow=true));
           scene.add(gltf.scene);
         },
-        xhr => {
-          if (xhr.lengthComputable) {
-            const pct = Math.round(xhr.loaded / xhr.total * 100);
-            loadingDiv.innerText = 加载中… ${pct}%;
-          } else {
-            const kb = (xhr.loaded / 1024).toFixed(1);
-            loadingDiv.innerText = 加载中… ${kb} KB;
-          }
+        xhr=>{
+          if(xhr.lengthComputable){ const pct=Math.round(xhr.loaded/xhr.total*100); loadingDiv.innerText=`加载中… ${pct}%`; }
+          else{ const kb=(xhr.loaded/1024).toFixed(1); loadingDiv.innerText=`加载中… ${kb} KB`; }
         },
-        err => loadingDiv.innerText = '🚨 模型加载失败'
+        err=>loadingDiv.innerText='🚨 模型加载失败'
       );
 
-      window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
+      window.addEventListener('resize',()=>{
+        camera.aspect=window.innerWidth/window.innerHeight;
         camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setSize(window.innerWidth,window.innerHeight);
       });
     }
 
-    function animate() {
+    function animate(){
       requestAnimationFrame(animate);
-      const dt = clock.getDelta();
-      mixer && mixer.update(dt);
-      water && water.material.uniforms && (water.material.uniforms['time'].value += dt);
-      renderer.render(scene, camera);
+      const dt=clock.getDelta();
+      mixer&&mixer.update(dt);
+      water&&water.material.uniforms&&(water.material.uniforms['time'].value+=dt);
+      renderer.render(scene,camera);
     }
   </script>
 </body>
