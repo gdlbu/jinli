@@ -14,7 +14,7 @@
     }
     canvas { display:block; }
   </style>
-  <!-- 本地 importmap -->
+  <!-- 重点：本地 importmap -->
   <script type="importmap">
   {
     "imports": {
@@ -34,7 +34,6 @@
     import { GLTFLoader }  from 'examples/loaders/GLTFLoader.js';
     import { Water }       from 'examples/objects/Water.js';
     import { Sky }         from 'examples/objects/Sky.js';
-    import { RGBELoader }  from 'examples/loaders/RGBELoader.js';
 
     let scene, camera, renderer, clock, mixer, water;
     const loadingDiv = document.getElementById('loading');
@@ -65,14 +64,7 @@
       renderer.toneMappingExposure = 0.6;
       renderer.setClearColor(0x0077be, 1);
 
-      // 直接加载 HDR 环境贴图，替代动态 pmremGen
-      new RGBELoader().load('/textures/skybox.hdr', function (texture) {
-        texture.mapping = THREE.EquirectangularReflectionMapping;
-        scene.environment = texture;
-        scene.background = texture;
-      });
-
-      // 可选：Sky Dome 仅做可视天空球（不做环境贴图，不会卡）
+      // Sky Dome
       const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
@@ -83,6 +75,13 @@
       su.mieDirectionalG.value = 0.8;
       const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
       su.sunPosition.value.copy(sunPos);
+
+      // 环境贴图 & 背景（可选：如你有静态贴图可替换）
+      const pmremGen = new THREE.PMREMGenerator(renderer);
+      const envMap = pmremGen.fromScene(sky).texture;
+      scene.environment = envMap;
+      scene.background = envMap;
+      loadingDiv.style.display = 'none';
 
       // 光照
       scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
@@ -104,12 +103,13 @@
 
       // 果冻海水面
       const waterGeo = new THREE.PlaneGeometry(200, 200);
+      // 重点：waternormals.jpg 本地路径
       const waterNormals = new THREE.TextureLoader().load(
         '/textures/waternormals.jpg',
         tex => { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(16, 16); }
       );
       water = new Water(waterGeo, {
-        textureWidth: 1024,
+        textureWidth: 1024, // 推荐优化
         textureHeight: 1024,
         waterNormals,
         sunDirection: sunPos.clone().normalize(),
