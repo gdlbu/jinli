@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池（相机(3,10,5)，鱼头朝向 -Z）- 天空与水色调整</title>
+  <title>3D 锦鲤池 - 晚霞天空与绿色水面</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; /* Initial background, will be overridden by sky */ }
     #loading {
@@ -41,17 +41,15 @@
     animate();
 
     function init() {
-      // Check if running via file protocol, which can cause issues with module loading or asset paths.
+      // Check if running via file protocol
       if (window.location.protocol === 'file:') {
         loadingDiv.innerText = '⚠️ 请通过 HTTP 服务器打开此页面 (例如使用 VS Code Live Server)';
-        // return; // Commenting out to allow attempt to run, but warning is important.
       }
 
       // Scene & Clock & Camera
       scene = new THREE.Scene();
       clock = new THREE.Clock();
-      camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 20000); // Increased far plane for sky
-      // Position camera at (3, 10, 5), looking down at the origin
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 20000);
       camera.position.set(3, 10, 5);
       camera.lookAt(0, 0, 0);
 
@@ -63,46 +61,43 @@
       renderer.shadowMap.enabled = true;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.7; // Adjusted exposure slightly
-      // No need for renderer.setClearColor if scene.background is set by sky
+      renderer.toneMappingExposure = 0.5; // Adjusted for evening light
 
       // Sky Dome
       const sky = new Sky();
-      sky.scale.setScalar(10000); // Make sky dome large enough
+      sky.scale.setScalar(10000);
       scene.add(sky);
 
       const skyUniforms = sky.material.uniforms;
-      // Adjusted sky parameters for a more natural blue sky
-      skyUniforms['turbidity'].value = 8;    // Default: 10, User: 0.2. Lowered for clearer sky.
-      skyUniforms['rayleigh'].value = 3.0;     // Default: 2 or 3, User: 12. Increased for more blue.
-      skyUniforms['mieCoefficient'].value = 0.005; // Default: 0.005, User: 0.0005
-      skyUniforms['mieDirectionalG'].value = 0.8;  // Default: 0.8, User: 0.9
+      // Adjusted sky parameters for a sunset effect
+      skyUniforms['turbidity'].value = 20;    // More haze for sunset
+      skyUniforms['rayleigh'].value = 1.5;     // Less blue, more warm scattering
+      skyUniforms['mieCoefficient'].value = 0.003; // Adjusted for sunset glow
+      skyUniforms['mieDirectionalG'].value = 0.95;  // Stronger forward scattering for sun glow
 
-      // Sun position: Lowered the sun for more color
+      // Sun position: Set to near or below horizon for sunset
       const sunPosition = new THREE.Vector3();
-      // phi: polar angle from zenith (0 to PI). PI * 0.5 is horizon.
-      // theta: azimuthal angle around Y axis (0 to 2PI).
-      const phi = THREE.MathUtils.degToRad(90 - 30); // Sun elevation: 30 degrees from horizon
-      const theta = THREE.MathUtils.degToRad(180);    // Sun azimuth: from the south (can be adjusted)
+      // phi: polar angle from zenith. Math.PI / 2 is horizon.
+      // Values slightly > Math.PI / 2 mean sun is below horizon (twilight)
+      // Values slightly < Math.PI / 2 mean sun is just above horizon
+      const phi = THREE.MathUtils.degToRad(90 - 1); // Sun 1 degree above horizon
+      const theta = THREE.MathUtils.degToRad(180);    // Azimuth: e.g., 180 for west
       sunPosition.setFromSphericalCoords(1, phi, theta);
       skyUniforms['sunPosition'].value.copy(sunPosition);
-
 
       // Environment Map & Background (Generated from the sky)
       const pmremGenerator = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGenerator.fromScene(sky).texture;
       scene.environment = envMap;
-      scene.background = envMap; // Set scene background to the skybox
-      pmremGenerator.dispose(); // Dispose of generator after use
-
+      scene.background = envMap;
+      pmremGenerator.dispose();
 
       // Lighting
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x505050, 0.6)); // Adjusted ground color and intensity
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); // Slightly increased intensity
-      // Set directional light to follow the sun's position for consistency
+      // Hemisphere light for ambient sky/ground colors
+      scene.add(new THREE.HemisphereLight(0xffdab9, 0x402020, 0.4)); // Peach sky, brownish ground, reduced intensity
+      const dirLight = new THREE.DirectionalLight(0xffaa55, 0.7); // Orange-ish sun light, reduced intensity
       dirLight.position.copy(sunPosition).multiplyScalar(50);
       dirLight.castShadow = true;
-      // Configure shadow properties for better quality
       dirLight.shadow.mapSize.width = 2048;
       dirLight.shadow.mapSize.height = 2048;
       dirLight.shadow.camera.near = 0.5;
@@ -114,11 +109,11 @@
       scene.add(dirLight);
 
       // Sand Bottom
-      const sandMaterial = new THREE.MeshStandardMaterial({ color: 0xD2B48C, roughness: 1 }); // Tan color for sand
+      const sandMaterial = new THREE.MeshStandardMaterial({ color: 0xC2B280, roughness: 1 }); // Slightly darker sand for evening
       const sandGeometry = new THREE.PlaneGeometry(200, 200);
       const sand = new THREE.Mesh(sandGeometry, sandMaterial);
       sand.rotation.x = -Math.PI / 2;
-      sand.receiveShadow = true; // Sand should receive shadows
+      sand.receiveShadow = true;
       scene.add(sand);
 
       // Water Surface
@@ -127,7 +122,7 @@
         'https://threejs.org/examples/textures/waternormals.jpg',
         (texture) => {
           texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-          texture.repeat.set(16, 16); // Adjust tiling for desired wave scale
+          texture.repeat.set(16, 16);
         }
       );
 
@@ -136,8 +131,8 @@
         textureHeight: 1024,
         waterNormals: waterNormalsTexture,
         sunDirection: sunPosition.clone().normalize(),
-        sunColor: 0xffffff,
-        waterColor: 0x40E0D0, // Turquoise (Greenish-Blue), as per original user code.
+        sunColor: 0xffaa55, // Sun color matching directional light for reflections
+        waterColor: 0x40E0D0, // Keep water turquoise/green as requested
         distortionScale: 3.7,
         fog: scene.fog !== undefined
       });
@@ -151,7 +146,7 @@
       controls.dampingFactor = 0.05;
       controls.minDistance = 5;
       controls.maxDistance = 100;
-      controls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent camera from going below ground
+      controls.maxPolarAngle = Math.PI / 2 - 0.01; // Prevent camera from going too low
       controls.target.set(0, 1, 0);
       controls.update();
 
@@ -193,7 +188,8 @@
       );
       
       if (!loadingDiv.innerText.includes('锦鲤')) {
-          // loadingDiv.style.display = 'none'; // Moved to GLTF load success
+          // Fallback for hiding loading if GLTF doesn't trigger it
+          // loadingDiv.style.display = 'none'; 
       }
 
       window.addEventListener('resize', onWindowResize, false);
