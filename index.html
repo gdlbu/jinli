@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池（增强版：真实光照 + 环境映射）</title>
+  <title>3D 锦鲤池（增强版：墨绿色清澈湖水）</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
     #loading {
@@ -83,14 +83,19 @@
       rimLight.position.set(-10, 10, -10);
       scene.add(rimLight);
 
-      // 地面与水面
-      const ground = new THREE.Mesh(
+      // 底部沙地
+      const sand = new THREE.Mesh(
         new THREE.PlaneGeometry(200,200),
-        new THREE.MeshStandardMaterial({ color: 0xDDCBA0 })
+        new THREE.MeshStandardMaterial({
+          color: 0xDDCBA0,
+          roughness: 1.0
+        })
       );
-      ground.rotation.x = -Math.PI/2;
-      scene.add(ground);
+      sand.rotation.x = -Math.PI/2;
+      sand.position.y = 0;
+      scene.add(sand);
 
+      // 墨绿色清澈水面
       const waterGeo = new THREE.PlaneGeometry(200, 200);
       const waterNormals = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg', tex => tex.repeat.set(4,4)
@@ -101,15 +106,17 @@
         waterNormals,
         sunDirection: sun.clone().normalize(),
         sunColor: 0xffffff,
-        // 调整湖水颜色为更深的天然蓝绿
-        waterColor: 0x006994,
-        // 增强水面波动，让反射更生动
-        distortionScale: 3.0,
+        waterColor: 0x013220,  // 墨绿色
+        distortionScale: 1.0,
         fog: scene.fog !== undefined
       });
       water.rotation.x = -Math.PI/2;
-      water.position.y = 1;
+      water.position.y = 0.2;  // 略高于沙面，以区分水面与沙底
       scene.add(water);
+
+      // 使水面半透明以呈现清澈效果
+      water.material.transparent = true;
+      water.material.opacity = 0.7;
 
       // 控制器
       const controls = new OrbitControls(camera, renderer.domElement);
