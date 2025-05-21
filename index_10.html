@@ -14,13 +14,12 @@
     }
     canvas { display:block; }
   </style>
-  <!-- 重点：本地 importmap -->
   <script type="importmap">
   {
     "imports": {
-      "three": "/three/three.module.js",
-      "three/": "/three/",
-      "examples/": "/three/examples/jsm/"
+      "three": "https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js",
+      "three/": "https://cdn.jsdelivr.net/npm/three@0.154.0/",
+      "examples/": "https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/"
     }
   }
   </script>
@@ -51,6 +50,7 @@
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+      // 将相机放在 (1, 12, 3)，俯视原点
       camera.position.set(1, 12, 3);
       camera.lookAt(0, 0, 0);
 
@@ -64,19 +64,19 @@
       renderer.toneMappingExposure = 0.6;
       renderer.setClearColor(0x0077be, 1);
 
-      // Sky Dome
+      // Sky Dome - 修改这里的参数使天空变蓝
       const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
       const su = sky.material.uniforms;
-      su.turbidity.value       = 10;
-      su.rayleigh.value        = 2;
-      su.mieCoefficient.value  = 0.005;
-      su.mieDirectionalG.value = 0.8;
+      su.turbidity.value       = 10;    // 增加浑浊度
+      su.rayleigh.value        = 2;     // 减小瑞利散射参数
+      su.mieCoefficient.value  = 0.005; // 增加米氏散射系数
+      su.mieDirectionalG.value = 0.8;   // 调整米氏散射方向性
       const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
       su.sunPosition.value.copy(sunPos);
 
-      // 环境贴图 & 背景（可选：如你有静态贴图可替换）
+      // 环境贴图 & 背景
       const pmremGen = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGen.fromScene(sky).texture;
       scene.environment = envMap;
@@ -103,14 +103,13 @@
 
       // 果冻海水面
       const waterGeo = new THREE.PlaneGeometry(200, 200);
-      // 重点：waternormals.jpg 本地路径
       const waterNormals = new THREE.TextureLoader().load(
-        '/textures/waternormals.jpg',
+        'https://threejs.org/examples/textures/waternormals.jpg',
         tex => { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(16, 16); }
       );
       water = new Water(waterGeo, {
-        textureWidth: 1024, // 推荐优化
-        textureHeight: 1024,
+        textureWidth: 2048,
+        textureHeight: 2048,
         waterNormals,
         sunDirection: sunPos.clone().normalize(),
         sunColor: 0xffffff,
@@ -128,11 +127,12 @@
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
 
-      // 加载锦鲤模型 & 初始朝向调整（本地路径！）
+      // 加载锦鲤模型 & 初始朝向调整
       const loader = new GLTFLoader();
       loader.load(
-        '/models/koi.glb',
+        'koi.glb',
         gltf => {
+          // 本地 +Z（鱼头方向） -> 全局 -Z
           gltf.scene.rotation.y = Math.PI;
           mixer = new THREE.AnimationMixer(gltf.scene);
           gltf.animations.forEach(c => mixer.clipAction(c).play());
