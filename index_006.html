@@ -50,10 +50,11 @@
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+      // 将相机放在 (3, 10, 5)，俯视原点
       camera.position.set(3, 10, 5);
       camera.lookAt(0, 0, 0);
 
-      // 渲染器（保持透明，显示 body 的背景色）
+      // 渲染器
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas: document.getElementById('canvas') });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
@@ -61,27 +62,25 @@
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 0.6;
-      renderer.setClearColor(0x000000, 0); // alpha=0，让 CSS 背景透出来
+      renderer.setClearColor(0x0077be, 1);
 
       // Sky Dome
       const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
       const su = sky.material.uniforms;
-      // 恢复官方示例默认值，避免过曝
-      su.turbidity.value      = 10;
-      su.rayleigh.value       = 3;
-      su.mieCoefficient.value = 0.005;
-      su.mieDirectionalG.value= 0.7;
-      // 太阳位置
+      su.turbidity.value       = 0.2;
+      su.rayleigh.value        = 12;
+      su.mieCoefficient.value  = 0.0005;
+      su.mieDirectionalG.value = 0.9;
       const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.15, Math.PI * 0.25);
       su.sunPosition.value.copy(sunPos);
 
-      // 环境贴图（只用于 PBR 环境光照，不用作背景）
+      // 环境贴图 & 背景
       const pmremGen = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGen.fromScene(sky).texture;
       scene.environment = envMap;
-      // scene.background = envMap; // 注释：不要用 envMap 作为背景
+      scene.background = envMap;
       loadingDiv.style.display = 'none';
 
       // 光照
@@ -128,11 +127,12 @@
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
 
-      // 加载锦鲤模型
+      // 加载锦鲤模型 & 初始朝向调整
       const loader = new GLTFLoader();
       loader.load(
         'koi.glb',
         gltf => {
+          // 本地 +Z（鱼头方向） -> 全局 -Z
           gltf.scene.rotation.y = Math.PI;
           mixer = new THREE.AnimationMixer(gltf.scene);
           gltf.animations.forEach(c => mixer.clipAction(c).play());
