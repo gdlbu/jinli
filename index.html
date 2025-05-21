@@ -51,8 +51,9 @@
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
-      // 初始俯视视角：鱼头朝上
-      camera.position.set(0, 20, 0);
+      // 初始俯视视角：鱼头朝上（位于鱼头前方并俯视）
+      camera.position.set(0, 0, 20); // 沿Z轴正方向俯视
+      camera.up.set(0, 1, 0);         // 设定Y轴为屏幕上方向，保证鱼头朝上
       camera.lookAt(0, 0, 0);
 
       renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
