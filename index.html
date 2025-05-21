@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池（碧绿清澈湖水 + 蓝天白云）</title>
+  <title>3D 锦鲤池（碧蓝天空 + 翠绿湖水 + 真实波纹）</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; }
     #loading {
@@ -38,11 +38,9 @@
     const loadingDiv = document.getElementById('loading');
     const canvas = document.getElementById('canvas');
 
-    init();
-    animate();
+    init(); animate();
 
     function init() {
-      // 必须通过 HTTP 服务器打开
       if (window.location.protocol === 'file:') {
         loadingDiv.innerText = '⚠️ 请通过 HTTP 服务器（如 python -m http.server）打开此页面';
         return;
@@ -53,7 +51,6 @@
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
       camera.position.set(0, 8, 20);
 
-      // 渲染器
       renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
@@ -62,87 +59,76 @@
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.0;
 
-      // 天空
+      // Sky: 强化蓝色
       const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
-      // 天空参数，营造蓝天白云效果
       const uniforms = sky.material.uniforms;
-      uniforms['turbidity'].value = 2;
-      uniforms['rayleigh'].value = 1.5;
-      uniforms['mieCoefficient'].value = 0.005;
-      uniforms['mieDirectionalG'].value = 0.7;
-
-      const sun = new THREE.Vector3();
-      sun.setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
+      uniforms['turbidity'].value = 1;
+      uniforms['rayleigh'].value = 4;
+      uniforms['mieCoefficient'].value = 0.002;
+      uniforms['mieDirectionalG'].value = 0.8;
+      const sun = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
       uniforms['sunPosition'].value.copy(sun);
-
       // 环境贴图
       const pmremGenerator = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGenerator.fromScene(sky).texture;
       scene.environment = envMap;
       scene.background = envMap;
 
-      // 光照
+      // Lights
       scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 1);
       dirLight.position.copy(sun).multiplyScalar(50);
       dirLight.castShadow = true;
       scene.add(dirLight);
-      const rim = new THREE.DirectionalLight(0xffffff, 0.3);
-      rim.position.set(-10,10,-10);
-      scene.add(rim);
+      scene.add(new THREE.DirectionalLight(0xffffff, 0.3).setPosition(-10,10,-10));
 
-      // 底部沙地
+      // Ground & Sand
       const sand = new THREE.Mesh(
         new THREE.PlaneGeometry(200,200),
         new THREE.MeshStandardMaterial({ color:0xDDCBA0, roughness:1 })
       );
-      sand.rotation.x = -Math.PI/2;
-      sand.position.y = 0;
+      sand.rotation.x = -Math.PI/2; sand.position.y = 0;
       scene.add(sand);
 
-      // 水面：碧绿清澈
+      // Water: 翠绿 + 真实波纹
       const waterGeo = new THREE.PlaneGeometry(200,200);
       const waterNormals = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg',
-        tex => tex.repeat.set(4,4),
+        tex => { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(8,8); },
         undefined,
         err => console.warn('水面法线加载失败', err)
       );
       water = new Water(waterGeo, {
-        textureWidth: 512,
-        textureHeight: 512,
+        textureWidth: 512, textureHeight: 512,
         waterNormals,
         sunDirection: sun.clone().normalize(),
         sunColor: 0xffffff,
-        waterColor: 0x40E0D0, // 碧绿
-        distortionScale: 1.2,
+        waterColor: 0x2E8B57,  // 翠绿色
+        distortionScale: 2.5,
         fog: false
       });
-      water.rotation.x = -Math.PI/2;
-      water.position.y = 0.1;
+      water.rotation.x = -Math.PI/2; water.position.y = 0.1;
       water.material.transparent = true;
-      water.material.opacity = 0.75;
+      water.material.opacity = 0.85;
       scene.add(water);
 
-      // 控制
+      // Controls
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
 
-      // 加载模型
+      // Load Kois
       const loader = new GLTFLoader();
       loader.load(
         'koi.glb',
         gltf => {
           loadingDiv.style.display = 'none';
           mixer = new THREE.AnimationMixer(gltf.scene);
-          gltf.animations.forEach(clip => mixer.clipAction(clip).play());
+          gltf.animations.forEach(c => mixer.clipAction(c).play());
           gltf.scene.scale.set(12,12,12);
           gltf.scene.position.y = 1.5;
-          gltf.scene.traverse(n => {
-            if (n.isMesh && n.material.isMeshStandardMaterial) n.castShadow = true;
-          });
+          gltf.scene.traverse(n => { if (n.isMesh) n.castShadow = true; });
           scene.add(gltf.scene);
         },
         xhr => loadingDiv.innerText = `加载中… ${Math.round((xhr.loaded/xhr.total)*100)}%`,
