@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池 · 可见水下鱼</title>
+  <title>3D 锦鲤池 · 深水效果</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
     #loading {
@@ -89,21 +89,21 @@
       dirLight.castShadow = true;
       scene.add(dirLight);
 
-      // 沙底
+      // 深色沙底
       const sand = new THREE.Mesh(
         new THREE.PlaneGeometry(200, 200),
-        new THREE.MeshStandardMaterial({ color: 0xfafcf6, roughness: 0.32 })
+        new THREE.MeshStandardMaterial({ color: 0xb6d6c6, roughness: 0.5 })
       );
       sand.rotation.x = -Math.PI/2;
       scene.add(sand);
 
-      // 蓝绿色水面（透明物理材质 Mesh）
+      // 深蓝绿色水面
       const waterPlane = new THREE.Mesh(
         new THREE.PlaneGeometry(200, 200),
         new THREE.MeshPhysicalMaterial({
-          color: 0x1de9b6,       // 蓝绿色
+          color: 0x14b2a4,      // 更深蓝绿
           transparent: true,
-          opacity: 0.45,         // 透明度
+          opacity: 0.35,        // 更不透明
           roughness: 0.35,
           metalness: 0.1,
           reflectivity: 0.7,
@@ -128,7 +128,6 @@
           mixer = new THREE.AnimationMixer(gltf.scene);
           gltf.animations.forEach(c => mixer.clipAction(c).play());
           gltf.scene.scale.set(12, 12, 12);
-          // 让锦鲤在水面下（或者略微贴水面，只调Y坐标即可）
           gltf.scene.position.y = waterPlane.position.y - 0.08;
           gltf.scene.traverse(n => n.isMesh && (n.castShadow = true));
           scene.add(gltf.scene);
