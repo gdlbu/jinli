@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池（相机(3,12,0)，鱼头朝向 -Z）</title>
+  <title>3D 锦鲤池（HDR天空背景，鱼头朝向 -Z）</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
     #loading {
@@ -39,7 +39,6 @@
     import { OrbitControls } from 'examples/controls/OrbitControls.js';
     import { GLTFLoader }  from 'examples/loaders/GLTFLoader.js';
     import { Water }       from 'examples/objects/Water.js';
-    import { Sky }         from 'examples/objects/Sky.js';
     import { RGBELoader }  from 'examples/loaders/RGBELoader.js';
 
     let scene, camera, renderer, clock, mixer, water;
@@ -91,17 +90,8 @@
         tryHideLoading();
       });
 
-      // 2. Sky Dome 仅为视觉天空球体（可省略，仅装饰）
-      const sky = new Sky();
-      sky.scale.setScalar(10000);
-      scene.add(sky);
-      const su = sky.material.uniforms;
-      su.turbidity.value       = 10;
-      su.rayleigh.value        = 2;
-      su.mieCoefficient.value  = 0.005;
-      su.mieDirectionalG.value = 0.8;
+      // 保留 sunPos 供光照
       const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
-      su.sunPosition.value.copy(sunPos);
 
       // 光照
       scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
@@ -121,7 +111,7 @@
       sand.rotation.x = -Math.PI/2;
       scene.add(sand);
 
-      // 3. 果冻海水面（waternormals.jpg加载完成后tryHideLoading）
+      // 2. 果冻海水面（waternormals.jpg加载完成后tryHideLoading）
       const waterGeo = new THREE.PlaneGeometry(200, 200);
       const waterNormals = new THREE.TextureLoader().load(
         '/textures/waternormals.jpg',
@@ -151,7 +141,7 @@
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
 
-      // 4. 加载锦鲤模型 & 初始朝向调整（koi.glb加载完成后tryHideLoading）
+      // 3. 加载锦鲤模型 & 初始朝向调整（koi.glb加载完成后tryHideLoading）
       const loader = new GLTFLoader();
       loader.load(
         '/models/koi.glb',
