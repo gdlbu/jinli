@@ -69,7 +69,7 @@
       scene.add(sky);
       const su = sky.material.uniforms;
       su.turbidity.value = 2.5;         // 低turbidity更通透
-      su.rayleigh.value = 3.5;          // 高rayleigh更蓝
+      su.rayleigh.value = 5;          // 高rayleigh更蓝
       su.mieCoefficient.value = 0.003;  // 低一点更纯净
       su.mieDirectionalG.value = 0.75;  // 保持
       const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.32, Math.PI * 0.25);
