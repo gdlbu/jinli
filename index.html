@@ -52,12 +52,9 @@
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
       // 初始俯视视角：鱼头朝上
-      camera.position.set(0, 20, 0); // 在鱼上方
-      camera.up.set(0, 0, 1);        // 上屏方向对应世界正Z轴（鱼头方向）
-      camera.lookAt(0, 0, 0);
+      camera.position.set(0, 20, 0);
       camera.lookAt(0, 0, 0);
 
-      // 渲染器
       renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
