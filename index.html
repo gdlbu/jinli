@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池 · 网红极蓝极绿版</title>
+  <title>3D 锦鲤池 · 蓝绿色水</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
     #loading {
@@ -60,7 +60,7 @@
       renderer.shadowMap.enabled = true;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.62;   // 极致饱和但不死白
+      renderer.toneMappingExposure = 0.62;   // 天空更蓝
       renderer.setClearColor(0x87ceeb, 1);
 
       // Sky Dome — 极蓝天
@@ -98,7 +98,7 @@
       sand.rotation.x = -Math.PI/2;
       scene.add(sand);
 
-      // 翡翠绿水面
+      // 蓝绿色水面
       const waterGeo = new THREE.PlaneGeometry(200, 200);
       const waterNormals = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg',
@@ -110,7 +110,7 @@
         waterNormals,
         sunDirection: sunPos.clone().normalize(),
         sunColor: 0xffffff,
-        waterColor: 0x21ff99,    // 翡翠绿
+        waterColor: 0x1de9b6,    // 蓝绿色
         distortionScale: 1.15,
         fog: false
       });
