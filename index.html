@@ -150,6 +150,8 @@
                     // 不对鱼模型进行旋转，保留原始方向
                     // 初始将鱼模型绕 X 轴旋转 90°，使鱼头朝向屏幕上方
           gltf.scene.rotation.x = Math.PI / 2;
+                    // 初始旋转：将鱼头指向屏幕上方
+          gltf.scene.rotation.x = Math.PI / 2;
           scene.add(gltf.scene);
         },
         xhr => {
