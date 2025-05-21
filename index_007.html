@@ -50,6 +50,7 @@
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+      // 将相机放在 (3, 10, 5)，俯视原点
       camera.position.set(3, 10, 5);
       camera.lookAt(0, 0, 0);
 
@@ -60,28 +61,26 @@
       renderer.shadowMap.enabled = true;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.7;  // ★ 亮度适中，天不白
+      renderer.toneMappingExposure = 0.6;
       renderer.setClearColor(0x0077be, 1);
 
-      // Sky Dome（自然湛蓝参数！）
+      // Sky Dome - 修改这里的参数使天空变蓝
       const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
       const su = sky.material.uniforms;
-      su.turbidity.value = 6;           // 4~8之间最自然
-      su.rayleigh.value = 2.5;          // 2~3之间自然偏蓝
-      su.mieCoefficient.value = 0.005;  // 保持小值
-      su.mieDirectionalG.value = 0.7;   // 一般默认0.7
-      const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.42, Math.PI * 0.25);
-      // θ=0.42π ≈ 75°，太阳有点高但不是正午
+      su.turbidity.value       = 10;    // 增加浑浊度
+      su.rayleigh.value        = 2;     // 减小瑞利散射参数
+      su.mieCoefficient.value  = 0.005; // 增加米氏散射系数
+      su.mieDirectionalG.value = 0.8;   // 调整米氏散射方向性
+      const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
       su.sunPosition.value.copy(sunPos);
 
       // 环境贴图 & 背景
       const pmremGen = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGen.fromScene(sky).texture;
       scene.environment = envMap;
-      scene.background = sky; // 直接用Sky
-
+      scene.background = envMap;
       loadingDiv.style.display = 'none';
 
       // 光照
@@ -133,6 +132,7 @@
       loader.load(
         'koi.glb',
         gltf => {
+          // 本地 +Z（鱼头方向） -> 全局 -Z
           gltf.scene.rotation.y = Math.PI;
           mixer = new THREE.AnimationMixer(gltf.scene);
           gltf.animations.forEach(c => mixer.clipAction(c).play());
