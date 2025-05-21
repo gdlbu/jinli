@@ -53,9 +53,10 @@
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
       // 初始俯视视角：摄像机位于鱼头上方并俯视
       camera.position.set(0, 0, 20);
+      camera.up.set(0, 0, 1); // 设置 world Z 轴为屏幕上方
       camera.lookAt(0, 0, 0);
       // 初始旋转视图，使鱼头指向屏幕上方
-      camera.rotateZ(Math.PI / 2);
+      // camera.rotateZ(Math.PI / 2); // 移除 roll 旋转，改用 camera.up 定义初始方向
 
        // 初始时旋转视图，使鱼头朝屏幕上方
 
