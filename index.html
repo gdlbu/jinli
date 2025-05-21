@@ -81,8 +81,8 @@
       scene.environment = envMap;
 
       // 光照
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.3) // 减弱环境光);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8) // 略微降低主光强;
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.3)); // 减弱环境光
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8); // 略微降低主光强
       dirLight.position.copy(sunPos).multiplyScalar(50);
       dirLight.castShadow = true;
       scene.add(dirLight);
