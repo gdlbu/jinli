@@ -60,20 +60,20 @@
       renderer.shadowMap.enabled = true;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.9;  // 更亮
+      renderer.toneMappingExposure = 0.7;  // ★ 亮度适中，天不白
       renderer.setClearColor(0x0077be, 1);
 
-      // Sky Dome（更蓝更亮参数！）
+      // Sky Dome（自然湛蓝参数！）
       const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
       const su = sky.material.uniforms;
-      su.turbidity.value = 2.5;         // 低turbidity更通透
-      su.rayleigh.value = 3.5;          // 高rayleigh更蓝
-      su.mieCoefficient.value = 0.003;  // 低一点更纯净
-      su.mieDirectionalG.value = 0.75;  // 保持
-      const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.32, Math.PI * 0.25);
-      // π*0.32约57.6度，太阳更高
+      su.turbidity.value = 6;           // 4~8之间最自然
+      su.rayleigh.value = 2.5;          // 2~3之间自然偏蓝
+      su.mieCoefficient.value = 0.005;  // 保持小值
+      su.mieDirectionalG.value = 0.7;   // 一般默认0.7
+      const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.42, Math.PI * 0.25);
+      // θ=0.42π ≈ 75°，太阳有点高但不是正午
       su.sunPosition.value.copy(sunPos);
 
       // 环境贴图 & 背景
