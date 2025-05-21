@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池（深蓝天空，碧绿水面加强版）</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>3D 锦鲤池（深蓝天空 & 碧绿水面 强化版）</title>
   <style>
     html, body {
       margin: 0;
@@ -11,8 +11,7 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      /* 深蓝背景色，配合 canvas alpha */
-      background: #001F3F;
+      background: #001F3F; /* 深海蓝备用背景 */
     }
     #loading {
       position: fixed;
@@ -60,7 +59,7 @@
         return;
       }
 
-      // 场景 & 时钟 & 相机
+      // 场景、相机、时钟
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
@@ -78,49 +77,49 @@
       renderer.shadowMap.enabled = true;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.6;   // 降低全局曝光
-      renderer.setClearColor(0x000000, 0);   // alpha=0，让 CSS 背景透出
+      renderer.toneMappingExposure = 0.8;   // 适中曝光，保留饱和度
+      renderer.setClearColor(0x000000, 0);
 
       // Sky Dome
       const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
       const su = sky.material.uniforms;
-      su.turbidity.value       = 1;      // 清晰
-      su.rayleigh.value        = 2;      // 强化蓝光散射
-      su.mieCoefficient.value  = 0.002;
-      su.mieDirectionalG.value = 0.9;
-      // 太阳位置：仰角约 5.4°（0.03π）
+      su.turbidity.value       = 1.5;   // 轻微大气，保持饱和
+      su.rayleigh.value        = 4;     // 强化蓝色散射
+      su.mieCoefficient.value  = 0.005;
+      su.mieDirectionalG.value = 0.8;
+      // 太阳位置：高仰角略偏，提供均匀散射
       const sunPos = new THREE.Vector3().setFromSphericalCoords(
         1,
-        Math.PI * 0.03,
+        Math.PI * 0.03,  // ≈5.4°
         Math.PI * 0.25
       );
       su.sunPosition.value.copy(sunPos);
 
-      // 环境贴图（PBR 光照用）
+      // 环境贴图（用于 PBR 光照，不作背景）
       const pmremGen = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGen.fromScene(sky).texture;
       scene.environment = envMap;
-      // scene.background = envMap; // 保持注释，不用 envMap 作背景
+      // scene.background = envMap; // 保持注释
 
       loadingDiv.style.display = 'none';
 
-      // 光照 —— 强度调低
-      // 半球光
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x222222, 0.2);
-      scene.add(hemiLight);
-      // 方向光（太阳光）
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
-      dirLight.position.copy(sunPos).multiplyScalar(50);
-      dirLight.castShadow = true;
-      scene.add(dirLight);
-      // 边缘光保持弱暖调
-      const rimLight = new THREE.DirectionalLight(0xffffff, 0.2);
-      rimLight.position.set(-10, 10, -10);
-      scene.add(rimLight);
+      // 光照设置
+      // 半球光：柔和彩光
+      const hemi = new THREE.HemisphereLight(0xffffff, 0x222222, 0.6);
+      scene.add(hemi);
+      // 方向光：模拟太阳光
+      const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+      dir.position.copy(sunPos).multiplyScalar(50);
+      dir.castShadow = true;
+      scene.add(dir);
+      // 边缘光：弱暖色，突出轮廓
+      const rim = new THREE.DirectionalLight(0xffffff, 0.2);
+      rim.position.set(-10, 10, -10);
+      scene.add(rim);
 
-      // 地面（沙底）
+      // 沙底
       const sand = new THREE.Mesh(
         new THREE.PlaneGeometry(200, 200),
         new THREE.MeshStandardMaterial({ color: 0xDDCBA0, roughness: 1 })
@@ -128,7 +127,7 @@
       sand.rotation.x = -Math.PI/2;
       scene.add(sand);
 
-      // 水面 —— 碧绿色加深
+      // 水面：深碧绿色
       const waterGeo = new THREE.PlaneGeometry(200, 200);
       const waterNormals = new THREE.TextureLoader().load(
         'https://threejs.org/examples/textures/waternormals.jpg',
@@ -143,7 +142,7 @@
         waterNormals,
         sunDirection: sunPos.clone().normalize(),
         sunColor: 0xffffff,
-        waterColor: 0x004433,    // 更深的碧绿色
+        waterColor: 0x004488,    // 更饱和的深碧绿色
         distortionScale: 3.2,
         fog: false
       });
@@ -182,7 +181,7 @@
         err => loadingDiv.innerText = '🚨 模型加载失败'
       );
 
-      // 窗口尺寸变化处理
+      // 窗口尺寸变化
       window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
@@ -193,7 +192,7 @@
     function animate() {
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
-      if (mixer) mixer.update(dt);
+      mixer && mixer.update(dt);
       if (water && water.material.uniforms) {
         water.material.uniforms.time.value += dt;
       }
