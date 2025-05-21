@@ -80,6 +80,8 @@
       const envMap = pmremGen.fromScene(sky).texture;
       scene.environment = envMap;
       scene.background = envMap;
+      // 加载完背景后立即隐藏遮罩，显示天空和水面
+      loadingDiv.style.display = 'none';
 
       // 光照设置
       scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
