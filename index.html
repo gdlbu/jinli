@@ -51,7 +51,7 @@
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
       camera.position.set(0, 8, 20);
 
-      renderer = new THREE.WebGLRenderer({ antialias:true, canvas: document.getElementById('canvas') });
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas: document.getElementById('canvas') }); // 启用 alpha 以显示背景
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.shadowMap.enabled = true;
@@ -62,7 +62,7 @@
       renderer.toneMappingExposure = 0.6;
       // 深蓝色清空色，保证背景是海天同色
       // 移除静态 clearColor，让背景使用动感环境贴图
-      // renderer.setClearColor(0x0077be);
+      // renderer.setClearColor(0x87CEEB); // 恢复基础蓝色清空，让 sky mesh 可见
 
       // Sky: 强化蓝天效果
       const sky = new Sky();
@@ -80,8 +80,9 @@
       const pmremGen = new THREE.PMREMGenerator(renderer);
       const envMap = pmremGen.fromScene(sky).texture;
       scene.environment = envMap;
+      scene.background = envMap; // 使用 envMap 作为背景，让天空可见
       // 使用环境贴图作为背景，确保天空HDR可见
-      scene.background = envMap;
+      
 
       // 光照
       scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.3)); // 减弱环境光
@@ -121,6 +122,8 @@
       water.material.transparent = true;
       water.material.opacity = 0.9;
       scene.add(water);
+      // 隐藏加载遮罩，让天空和水面可见
+      loadingDiv.style.display = 'none';
 
       // 控制
       const controls = new OrbitControls(camera, renderer.domElement);
