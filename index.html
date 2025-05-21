@@ -11,10 +11,16 @@
       display:flex; align-items:center; justify-content:center;
       font-family:sans-serif; font-size:1.2em; color:#fff;
       background:#0077be; z-index:100;
+      opacity: 1;
+      transition: opacity 0.8s cubic-bezier(.45,0,.55,1);
+      pointer-events: auto;
+    }
+    #loading.hide {
+      opacity: 0;
+      pointer-events: none;
     }
     canvas { display:block; }
   </style>
-  <!-- 本地 importmap -->
   <script type="importmap">
   {
     "imports": {
@@ -38,6 +44,18 @@
 
     let scene, camera, renderer, clock, mixer, water;
     const loadingDiv = document.getElementById('loading');
+
+    // 记录主要资源加载情况，全部加载完再淡出 loading
+    let resourcesLoaded = 0;
+    const totalResources = 3; // skybox.hdr、waternormals.jpg、koi.glb
+
+    function tryHideLoading() {
+      resourcesLoaded++;
+      if (resourcesLoaded >= totalResources) {
+        loadingDiv.classList.add('hide');
+        setTimeout(() => { loadingDiv.style.display = 'none'; }, 800);
+      }
+    }
 
     init();
     animate();
@@ -65,14 +83,15 @@
       renderer.toneMappingExposure = 0.6;
       renderer.setClearColor(0x0077be, 1);
 
-      // 直接加载 HDR 环境贴图，替代动态 pmremGen
+      // 1. 加载 HDR 环境贴图（加载完成后调用 tryHideLoading）
       new RGBELoader().load('/textures/skybox.hdr', function (texture) {
         texture.mapping = THREE.EquirectangularReflectionMapping;
         scene.environment = texture;
         scene.background = texture;
+        tryHideLoading();
       });
 
-      // 可选：Sky Dome 仅做可视天空球（不做环境贴图，不会卡）
+      // 2. Sky Dome 仅为视觉天空球体（可省略，仅装饰）
       const sky = new Sky();
       sky.scale.setScalar(10000);
       scene.add(sky);
@@ -102,11 +121,15 @@
       sand.rotation.x = -Math.PI/2;
       scene.add(sand);
 
-      // 果冻海水面
+      // 3. 果冻海水面（waternormals.jpg加载完成后tryHideLoading）
       const waterGeo = new THREE.PlaneGeometry(200, 200);
       const waterNormals = new THREE.TextureLoader().load(
         '/textures/waternormals.jpg',
-        tex => { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(16, 16); }
+        tex => {
+          tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+          tex.repeat.set(16, 16);
+          tryHideLoading();
+        }
       );
       water = new Water(waterGeo, {
         textureWidth: 1024,
@@ -128,7 +151,7 @@
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
 
-      // 加载锦鲤模型 & 初始朝向调整（本地路径！）
+      // 4. 加载锦鲤模型 & 初始朝向调整（koi.glb加载完成后tryHideLoading）
       const loader = new GLTFLoader();
       loader.load(
         '/models/koi.glb',
@@ -140,7 +163,7 @@
           gltf.scene.position.y = water.position.y+1;
           gltf.scene.traverse(n => n.isMesh && (n.castShadow = true));
           scene.add(gltf.scene);
-          loadingDiv.style.display = 'none';
+          tryHideLoading();
         },
         xhr => {
           if (xhr.lengthComputable) {
