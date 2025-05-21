@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>3D 锦鲤池（相机(3,12,5)，鱼头朝向 -Z）</title>
+  <title>3D 锦鲤池（相机(3,12,0)，鱼头朝向 -Z）</title>
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
     #loading {
@@ -50,8 +50,8 @@
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
-      // 将相机放在 (3, 10, 5)，俯视原点
-      camera.position.set(3, 12, 5);
+      // 将相机放在 (3, 12, 0)，俯视原点
+      camera.position.set(3, 12, 0);
       camera.lookAt(0, 0, 0);
 
       // 渲染器
