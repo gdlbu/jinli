@@ -183,7 +183,7 @@
             });
             textMesh = new THREE.Mesh(textGeo, textMat);
             // 直接缩厚度，真正最薄
-            textMesh.scale.z = 0.03;
+            textMesh.scale.z = 0.01;
             scene.add(textMesh);
             // 静态：初始放鱼头前
             textMesh.position.copy(koi.position);
