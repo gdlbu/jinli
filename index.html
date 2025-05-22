@@ -34,37 +34,44 @@
   }
   </script>
   <script>
-  window.addEventListener('DOMContentLoaded', () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = window.innerWidth * 2;
-    canvas.height = window.innerHeight * 2;
-    const ctx = canvas.getContext('2d');
-    // 中心色降低亮度，整体柔和
-    const grad = ctx.createRadialGradient(
-      canvas.width/2, canvas.height/3, canvas.width/10,
-      canvas.width/2, canvas.height/2, canvas.width/1.2
-    );
-    grad.addColorStop(0, '#4db9b9');    // 中心色较深
-    grad.addColorStop(0.6, '#43cccc');  // 中间
-    grad.addColorStop(1, '#226060');    // 外圈深蓝绿
-    ctx.fillStyle = grad;
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+window.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = window.innerWidth * 2;
+  canvas.height = window.innerHeight * 2;
+  const ctx = canvas.getContext('2d');
 
-    // “水泡/水纹”柔和点缀
-    for(let i=0; i<40; i++) {
-      ctx.globalAlpha = 0.07 + Math.random() * 0.06;
-      ctx.beginPath();
-      let x = Math.random()*canvas.width, y = Math.random()*canvas.height*0.7+canvas.height*0.1;
-      let r = 24 + Math.random()*64;
-      ctx.arc(x, y, r, 0, 2*Math.PI);
-      ctx.fillStyle = i%2==0 ? '#b3e3e1' : '#e3ffff';
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    document.getElementById('loading').style.backgroundImage =
-      `url(${canvas.toDataURL('image/png')})`;
-    document.getElementById('loading').style.backgroundSize = 'cover';
-  });
+  // 平滑渐变：中心亮，边缘深，但过渡更柔和
+  const grad = ctx.createRadialGradient(
+    canvas.width/2, canvas.height/2.8, canvas.width/4,     // 中心位置、半径
+    canvas.width/2, canvas.height/2, canvas.width/1.1      // 外层位置、半径
+  );
+  grad.addColorStop(0, '#57d3c9');   // 中心亮色
+  grad.addColorStop(0.4, '#46bcb4'); // 过渡
+  grad.addColorStop(1, '#1f5d60');   // 深色边缘
+
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 柔和点缀（减少数量，增加模糊感）
+  ctx.shadowColor = 'rgba(255, 255, 255, 0.2)';
+  ctx.shadowBlur = 25;
+  for (let i = 0; i < 30; i++) {
+    ctx.beginPath();
+    const x = Math.random() * canvas.width;
+    const y = Math.random() * canvas.height * 0.7 + canvas.height * 0.15;
+    const r = 20 + Math.random() * 50;
+    ctx.globalAlpha = 0.05 + Math.random() * 0.05;
+    ctx.fillStyle = '#ffffff';
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  document.getElementById('loading').style.backgroundImage =
+    `url(${canvas.toDataURL('image/png')})`;
+  document.getElementById('loading').style.backgroundSize = 'cover';
+});
+
   </script>
 </head>
 <body>
