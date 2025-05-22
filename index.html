@@ -169,7 +169,7 @@
             const textGeo = new TextGeometry('jin.li', {
               font: font,
               size: 0.8,
-              height: 0.00001,
+              height: 0.01,
               curveSegments: 0.12,
               bevelEnabled: false
               
@@ -182,6 +182,9 @@
               emissiveIntensity: 0.05
             });
             textMesh = new THREE.Mesh(textGeo, textMat);
+            // 直接缩厚度，真正最薄
+            textMesh.scale.z = 0.03;
+            scene.add(textMesh);
             // 静态：初始放鱼头前
             textMesh.position.copy(koi.position);
             textMesh.position.x += 2.6; // 鱼头大致在x正方向（如朝向变化可再调）
