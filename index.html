@@ -40,42 +40,41 @@ window.addEventListener('DOMContentLoaded', () => {
   canvas.height = window.innerHeight * 2;
   const ctx = canvas.getContext('2d');
 
-  // === 更平滑的多段径向渐变 ===
+  // 更自然的中心分布（无高亮、柔和过渡）
   const grad = ctx.createRadialGradient(
-    canvas.width / 2, canvas.height * 0.52, canvas.width * 0.25, // 中心
-    canvas.width / 2, canvas.height / 2, canvas.width / 1.05     // 外圈
+    canvas.width/2, canvas.height*0.54, canvas.width*0.13,   // 中心更小，稍微偏下
+    canvas.width/2, canvas.height/2, canvas.width/1.02       // 外圈更大
   );
-  grad.addColorStop(0.00, '#b0f4e6'); // 最中心亮点
-  grad.addColorStop(0.15, '#74e4de'); // 过渡一
-  grad.addColorStop(0.38, '#48b9c7'); // 过渡二
-  grad.addColorStop(0.70, '#25747a'); // 过渡三
-  grad.addColorStop(1.00, '#17394b'); // 最外深色
+  grad.addColorStop(0.00, '#62b5c7');  // 中心淡湖蓝
+  grad.addColorStop(0.18, '#45a1ba');  // 内层蓝绿
+  grad.addColorStop(0.38, '#368ca5');  // 渐变蓝
+  grad.addColorStop(0.75, '#215b6e');  // 深蓝
+  grad.addColorStop(1.00, '#142d3a');  // 最外层墨蓝
 
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 柔和点缀云团（更大更虚，数量更少）
-  for (let i = 0; i < 20; i++) {
+  // 云雾点缀（模糊+淡色+无中心白斑）
+  for (let i = 0; i < 12; i++) {
     ctx.save();
-    ctx.globalAlpha = 0.04 + Math.random() * 0.05;
-    ctx.filter = `blur(${12 + Math.random() * 12}px)`;
+    ctx.globalAlpha = 0.03 + Math.random() * 0.045;
+    ctx.filter = `blur(${18 + Math.random() * 10}px)`;
     ctx.beginPath();
-    const x = Math.random() * canvas.width * 1.1 - canvas.width * 0.05;
-    const y = Math.random() * canvas.height * 0.7 + canvas.height * 0.15;
-    const rx = 40 + Math.random() * 70;
-    const ry = 30 + Math.random() * 60;
+    const x = Math.random() * canvas.width;
+    const y = Math.random() * canvas.height * 0.8 + canvas.height * 0.1;
+    const rx = 50 + Math.random() * 90;
+    const ry = 36 + Math.random() * 65;
     ctx.ellipse(x, y, rx, ry, Math.random() * Math.PI, 0, Math.PI * 2);
-    ctx.fillStyle = Math.random() > 0.4 ? '#fff' : '#cff';
+    ctx.fillStyle = Math.random() > 0.7 ? '#e0f3fa' : '#badde6';
     ctx.fill();
     ctx.restore();
   }
-  ctx.globalAlpha = 1;
-  ctx.filter = 'none';
 
   document.getElementById('loading').style.backgroundImage =
     `url(${canvas.toDataURL('image/png')})`;
   document.getElementById('loading').style.backgroundSize = 'cover';
 });
+
 
   </script>
 </head>
