@@ -220,8 +220,8 @@
       fishDirection.applyQuaternion(koi.quaternion);
 
       // 字放在鱼头正前方2.6单位，可调节距离
-      const textPos = fishWorldPos.clone().add(fishDirection.multiplyScalar(2.6));
-      textPos.y = water.position.y - 0.6; // 高度略高于湖面
+      const textPos = fishWorldPos.clone().add(fishDirection.multiplyScalar(-2.6));
+      textPos.y = water.position.y + 0.6; // 高度略高于湖面
       textMesh.position.copy(textPos);
 
       // 平铺湖面
