@@ -79,9 +79,10 @@
       renderer.shadowMap.enabled = true;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.6;
+      renderer.toneMappingExposure = 0.9;  // 镜面金属推荐略高
       renderer.setClearColor(0x0077be, 1);
 
+      // 镜面金属材质需要HDR环境反射
       new RGBELoader().load('/textures/skybox.hdr', function (texture) {
         texture.mapping = THREE.EquirectangularReflectionMapping;
         scene.environment = texture;
@@ -92,11 +93,11 @@
       const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
 
       scene.add(new THREE.HemisphereLight(0xffffff, 0x444488, 0.25));
-      const dirLight = new THREE.DirectionalLight(0xfff4e0, 0.98);
+      const dirLight = new THREE.DirectionalLight(0xfff4e0, 1.2);
       dirLight.position.copy(sunPos).multiplyScalar(60);
       dirLight.castShadow = true;
       scene.add(dirLight);
-      const rimLight = new THREE.DirectionalLight(0xbfdfff, 0.45);
+      const rimLight = new THREE.DirectionalLight(0xbfdfff, 0.5);
       rimLight.position.set(-10, 15, -15);
       scene.add(rimLight);
 
@@ -174,21 +175,23 @@
             });
             textGeo.computeBoundingBox();
 
-            // 居中！用 geometry.translate 而不是 mesh.position
+            // 居中
             const bbox = textGeo.boundingBox;
             const centerX = (bbox.max.x + bbox.min.x) / 2;
             const centerZ = (bbox.max.z + bbox.min.z) / 2;
             textGeo.translate(-centerX, 0, -centerZ);
 
-            const textMat = new THREE.MeshStandardMaterial({
-              color: 0xffcc88,
-              metalness: 0.18,
-              roughness: 0.35,
-              emissive: 0xffe8d0,
-              emissiveIntensity: 0.05
+            // 镜面金属材质
+            const textMat = new THREE.MeshPhysicalMaterial({
+              color: 0xffffff,
+              metalness: 1.0,
+              roughness: 0.08,
+              clearcoat: 1.0,
+              clearcoatRoughness: 0.01,
+              envMapIntensity: 1.5
             });
             textMesh = new THREE.Mesh(textGeo, textMat);
-            textMesh.scale.z = 0.003;
+            textMesh.scale.z = 0.003;  // 极薄
             scene.add(textMesh);
 
             updateTextPosition();
@@ -225,7 +228,7 @@
       const fishDirection = new THREE.Vector3(0, 0, -1);
       fishDirection.applyQuaternion(koi.quaternion);
 
-      // 字放在鱼头正前方2.6单位，可调节距离
+      // 字放在鱼头正前方3单位，可调节距离
       const textPos = fishWorldPos.clone().add(fishDirection.multiplyScalar(3));
       textPos.y = water.position.y + 0.6; // 高度略高于湖面
       textMesh.position.copy(textPos);
@@ -240,7 +243,6 @@
       mixer && mixer.update(dt);
       water && water.material.uniforms && (water.material.uniforms.time.value += dt*.4);
 
-      // 字始终漂浮在鱼头正前方湖面上
       updateTextPosition();
 
       renderer.render(scene, camera);
