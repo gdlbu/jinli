@@ -5,13 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>锦鲤 jin.li</title>
   <style>
-    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#87CEEB; }
+    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#227171; }
     #loading {
       position:fixed; top:0; left:0; right:0; bottom:0;
       display:flex; align-items:center; justify-content:center;
       font-family:sans-serif; font-size:1.2em; color:#fff;
-      background:#208080;   /* 更暗的蓝绿色 */
-      z-index:100;
+      background:#227171; z-index:100;
       opacity: 1;
       transition: opacity 0.8s cubic-bezier(.45,0,.55,1);
       pointer-events: auto;
@@ -22,11 +21,187 @@
     }
     canvas { display:block; }
   </style>
-  <!-- 其余内容同前，略 -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "/three/three.module.js",
+      "three/": "/three/",
+      "examples/": "/three/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 <body>
   <div id="loading">加载中… 0%</div>
   <canvas id="canvas"></canvas>
-  <!-- ...script不变... -->
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'examples/controls/OrbitControls.js';
+    import { GLTFLoader }  from 'examples/loaders/GLTFLoader.js';
+    import { Water }       from 'examples/objects/Water.js';
+    import { RGBELoader }  from 'examples/loaders/RGBELoader.js';
+
+    let scene, camera, renderer, clock, mixer, water;
+    const loadingDiv = document.getElementById('loading');
+
+    // 记录主要资源加载情况，全部加载完再淡出 loading
+    let resourcesLoaded = 0;
+    const totalResources = 3; // skybox.hdr、waternormals.jpg、koi.glb
+
+    function tryHideLoading() {
+      resourcesLoaded++;
+      if (resourcesLoaded >= totalResources) {
+        loadingDiv.classList.add('hide');
+        setTimeout(() => { loadingDiv.style.display = 'none'; }, 800);
+      }
+    }
+
+    init();
+    animate();
+
+    function init() {
+      if (window.location.protocol === 'file:') {
+        loadingDiv.innerText = '⚠️ 请通过 HTTP 服务器打开此页面';
+        return;
+      }
+
+      // 场景 & 时钟 & 相机
+      scene = new THREE.Scene();
+      clock = new THREE.Clock();
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+      camera.position.set(1, 12, 3);
+      camera.lookAt(0, 0, 0);
+
+      // 渲染器
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas: document.getElementById('canvas') });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.shadowMap.enabled = true;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 0.6;
+      renderer.setClearColor(0x0077be, 1);
+
+      // 1. 加载 HDR 环境贴图（加载完成后调用 tryHideLoading）
+      new RGBELoader().load('/textures/skybox.hdr', function (texture) {
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        scene.environment = texture;
+        scene.background = texture;
+        tryHideLoading();
+      });
+
+      // 保留 sunPos 供光照
+      const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
+
+      // ===== 光照：更自然风格 =====
+
+      // 1. 环境光，偏冷、弱
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x444488, 0.25));
+
+      // 2. 主方向光，暖色、亮度适中
+      const dirLight = new THREE.DirectionalLight(0xfff4e0, 1.15); // 0xfff4e0是淡暖白
+      dirLight.position.copy(sunPos).multiplyScalar(60);
+      dirLight.castShadow = true;
+      scene.add(dirLight);
+
+      // 3. 边缘光，天蓝色、较弱
+      const rimLight = new THREE.DirectionalLight(0xbfdfff, 0.45);
+      rimLight.position.set(-10, 15, -15);
+      scene.add(rimLight);
+
+      // 沙底
+      const sand = new THREE.Mesh(
+        new THREE.PlaneGeometry(200, 200),
+        new THREE.MeshStandardMaterial({ color: 0xDDCBA0, roughness: 1 })
+      );
+      sand.rotation.x = -Math.PI/2;
+      scene.add(sand);
+
+      // 2. 果冻海水面（waternormals.jpg加载完成后tryHideLoading）
+      const waterGeo = new THREE.PlaneGeometry(200, 200);
+      const waterNormals = new THREE.TextureLoader().load(
+        '/textures/waternormals.jpg',
+        tex => {
+          tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+          tex.repeat.set(16, 16);
+          tryHideLoading();
+        }
+      );
+      water = new Water(waterGeo, {
+        textureWidth: 512,
+        textureHeight: 512,
+        waterNormals,
+        sunDirection: sunPos.clone().normalize(),
+        sunColor: 0xffffff,
+        waterColor: 0x40E0D0,
+        distortionScale: 3.2,
+        fog: false
+      });
+      water.rotation.x = -Math.PI/2;
+      water.position.y = 0.1;
+      water.material.transparent = true;
+      water.material.opacity = 0.95;
+      scene.add(water);
+
+      // 控制器
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      // 3. 加载锦鲤模型 & 初始朝向调整（koi.glb加载完成后tryHideLoading）
+      const loader = new GLTFLoader();
+      loader.load(
+        '/models/koi.glb',
+        gltf => {
+          gltf.scene.rotation.y = Math.PI;
+          mixer = new THREE.AnimationMixer(gltf.scene);
+          gltf.animations.forEach(c => mixer.clipAction(c).play());
+          gltf.scene.scale.set(12, 12, 12);
+          gltf.scene.position.y = water.position.y+1;
+          gltf.scene.traverse(n => {
+            if (n.isMesh) {
+              n.castShadow = true;
+              // === 让锦鲤自然微亮 ===
+              if(n.material) {
+                // 材质自发光（淡暖色，微弱）
+                if(n.material.emissive) {
+                  n.material.emissive.setHex(0xffe8d0);
+                  n.material.emissiveIntensity = 0.05;
+                }
+                // 适当提升高光表现
+                if("metalness" in n.material) n.material.metalness = 0.15;
+                if("roughness" in n.material) n.material.roughness = 0.4;
+              }
+            }
+          });
+          scene.add(gltf.scene);
+          tryHideLoading();
+        },
+        xhr => {
+          if (xhr.lengthComputable) {
+            const pct = Math.round(xhr.loaded / xhr.total * 100);
+            loadingDiv.innerText = `加载中… ${pct}%`;
+          } else {
+            const kb = (xhr.loaded / 1024).toFixed(1);
+            loadingDiv.innerText = `加载中… ${kb} KB`;
+          }
+        },
+        err => loadingDiv.innerText = '🚨 模型加载失败'
+      );
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = clock.getDelta();
+      mixer && mixer.update(dt);
+      water && water.material.uniforms && (water.material.uniforms.time.value += dt*.4);
+      renderer.render(scene, camera);
+    }
+  </script>
 </body>
 </html>
