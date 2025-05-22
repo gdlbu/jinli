@@ -79,10 +79,10 @@
       renderer.shadowMap.enabled = true;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.9;  // 镜面金属推荐略高
+      renderer.toneMappingExposure = 0.95;
       renderer.setClearColor(0x0077be, 1);
 
-      // 镜面金属材质需要HDR环境反射
+      // 环境贴图建议为明亮水色/天空HDR
       new RGBELoader().load('/textures/skybox.hdr', function (texture) {
         texture.mapping = THREE.EquirectangularReflectionMapping;
         scene.environment = texture;
@@ -93,7 +93,7 @@
       const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
 
       scene.add(new THREE.HemisphereLight(0xffffff, 0x444488, 0.25));
-      const dirLight = new THREE.DirectionalLight(0xfff4e0, 1.2);
+      const dirLight = new THREE.DirectionalLight(0xfff4e0, 1.15);
       dirLight.position.copy(sunPos).multiplyScalar(60);
       dirLight.castShadow = true;
       scene.add(dirLight);
@@ -163,7 +163,7 @@
           scene.add(koi);
           tryHideLoading();
 
-          // 加载字体和生成3D字
+          // 加载字体和生成黄色水晶3D字
           const fontLoader = new FontLoader();
           fontLoader.load('/fonts/jinli.typeface.json', function(font) {
             const textGeo = new TextGeometry('锦鲤 jin.li', {
@@ -181,17 +181,21 @@
             const centerZ = (bbox.max.z + bbox.min.z) / 2;
             textGeo.translate(-centerX, 0, -centerZ);
 
-            // 镜面金属材质
+            // 黄色水晶物理材质
             const textMat = new THREE.MeshPhysicalMaterial({
-              color: 0xffffff,
-              metalness: 1.0,
-              roughness: 0.08,
+              color: 0xffeb61,           // 明黄色
+              metalness: 0.0,
+              roughness: 0.04,
               clearcoat: 1.0,
               clearcoatRoughness: 0.01,
-              envMapIntensity: 1.5
+              transmission: 1.0,
+              ior: 1.53,
+              thickness: 0.17,
+              envMapIntensity: 1.2,
+              specularIntensity: 0.85
             });
             textMesh = new THREE.Mesh(textGeo, textMat);
-            textMesh.scale.z = 0.003;  // 极薄
+            textMesh.scale.z = 0.003;
             scene.add(textMesh);
 
             updateTextPosition();
