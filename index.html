@@ -93,14 +93,20 @@
       // 保留 sunPos 供光照
       const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
 
-      // 光照
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.copy(sunPos).multiplyScalar(50);
+      // ===== 光照：更自然风格 =====
+
+      // 1. 环境光，偏冷、弱
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x444488, 0.25));
+
+      // 2. 主方向光，暖色、亮度适中
+      const dirLight = new THREE.DirectionalLight(0xfff4e0, 1.15); // 0xfff4e0是淡暖白
+      dirLight.position.copy(sunPos).multiplyScalar(60);
       dirLight.castShadow = true;
       scene.add(dirLight);
-      const rimLight = new THREE.DirectionalLight(0xffffff, 0.3);
-      rimLight.position.set(-10, 10, -10);
+
+      // 3. 边缘光，天蓝色、较弱
+      const rimLight = new THREE.DirectionalLight(0xbfdfff, 0.45);
+      rimLight.position.set(-10, 15, -15);
       scene.add(rimLight);
 
       // 沙底
@@ -151,7 +157,22 @@
           gltf.animations.forEach(c => mixer.clipAction(c).play());
           gltf.scene.scale.set(12, 12, 12);
           gltf.scene.position.y = water.position.y+1;
-          gltf.scene.traverse(n => n.isMesh && (n.castShadow = true));
+          gltf.scene.traverse(n => {
+            if (n.isMesh) {
+              n.castShadow = true;
+              // === 让锦鲤自然微亮 ===
+              if(n.material) {
+                // 材质自发光（淡暖色，微弱）
+                if(n.material.emissive) {
+                  n.material.emissive.setHex(0xffe8d0);
+                  n.material.emissiveIntensity = 0.10;
+                }
+                // 适当提升高光表现
+                if("metalness" in n.material) n.material.metalness = 0.15;
+                if("roughness" in n.material) n.material.roughness = 0.4;
+              }
+            }
+          });
           scene.add(gltf.scene);
           tryHideLoading();
         },
