@@ -40,32 +40,37 @@ window.addEventListener('DOMContentLoaded', () => {
   canvas.height = window.innerHeight * 2;
   const ctx = canvas.getContext('2d');
 
-  // 平滑渐变：中心亮，边缘深，但过渡更柔和
+  // === 更平滑的多段径向渐变 ===
   const grad = ctx.createRadialGradient(
-    canvas.width/2, canvas.height/2.8, canvas.width/4,     // 中心位置、半径
-    canvas.width/2, canvas.height/2, canvas.width/1.1      // 外层位置、半径
+    canvas.width / 2, canvas.height * 0.52, canvas.width * 0.25, // 中心
+    canvas.width / 2, canvas.height / 2, canvas.width / 1.05     // 外圈
   );
-  grad.addColorStop(0, '#57d3c9');   // 中心亮色
-  grad.addColorStop(0.4, '#46bcb4'); // 过渡
-  grad.addColorStop(1, '#1f5d60');   // 深色边缘
+  grad.addColorStop(0.00, '#b0f4e6'); // 最中心亮点
+  grad.addColorStop(0.15, '#74e4de'); // 过渡一
+  grad.addColorStop(0.38, '#48b9c7'); // 过渡二
+  grad.addColorStop(0.70, '#25747a'); // 过渡三
+  grad.addColorStop(1.00, '#17394b'); // 最外深色
 
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 柔和点缀（减少数量，增加模糊感）
-  ctx.shadowColor = 'rgba(255, 255, 255, 0.2)';
-  ctx.shadowBlur = 25;
-  for (let i = 0; i < 30; i++) {
+  // 柔和点缀云团（更大更虚，数量更少）
+  for (let i = 0; i < 20; i++) {
+    ctx.save();
+    ctx.globalAlpha = 0.04 + Math.random() * 0.05;
+    ctx.filter = `blur(${12 + Math.random() * 12}px)`;
     ctx.beginPath();
-    const x = Math.random() * canvas.width;
+    const x = Math.random() * canvas.width * 1.1 - canvas.width * 0.05;
     const y = Math.random() * canvas.height * 0.7 + canvas.height * 0.15;
-    const r = 20 + Math.random() * 50;
-    ctx.globalAlpha = 0.05 + Math.random() * 0.05;
-    ctx.fillStyle = '#ffffff';
-    ctx.arc(x, y, r, 0, Math.PI * 2);
+    const rx = 40 + Math.random() * 70;
+    const ry = 30 + Math.random() * 60;
+    ctx.ellipse(x, y, rx, ry, Math.random() * Math.PI, 0, Math.PI * 2);
+    ctx.fillStyle = Math.random() > 0.4 ? '#fff' : '#cff';
     ctx.fill();
+    ctx.restore();
   }
   ctx.globalAlpha = 1;
+  ctx.filter = 'none';
 
   document.getElementById('loading').style.backgroundImage =
     `url(${canvas.toDataURL('image/png')})`;
