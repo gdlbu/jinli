@@ -40,32 +40,32 @@ window.addEventListener('DOMContentLoaded', () => {
   canvas.height = window.innerHeight * 2;
   const ctx = canvas.getContext('2d');
 
-  // 更自然的中心分布（无高亮、柔和过渡）
+  // 仿真锦鲤池水主色渐变
   const grad = ctx.createRadialGradient(
-    canvas.width/2, canvas.height*0.54, canvas.width*0.13,   // 中心更小，稍微偏下
-    canvas.width/2, canvas.height/2, canvas.width/1.02       // 外圈更大
+    canvas.width/2, canvas.height*0.52, canvas.width*0.02,    // 极小中心，不造高亮
+    canvas.width/2, canvas.height/2, canvas.width/1.01
   );
-  grad.addColorStop(0.00, '#62b5c7');  // 中心淡湖蓝
-  grad.addColorStop(0.18, '#45a1ba');  // 内层蓝绿
-  grad.addColorStop(0.38, '#368ca5');  // 渐变蓝
-  grad.addColorStop(0.75, '#215b6e');  // 深蓝
-  grad.addColorStop(1.00, '#142d3a');  // 最外层墨蓝
+  grad.addColorStop(0.00, '#82e5dc'); // 中心微亮的青绿色
+  grad.addColorStop(0.20, '#63d1c9'); // 主色湖绿
+  grad.addColorStop(0.46, '#51bfc1'); // 过渡
+  grad.addColorStop(0.85, '#3baab2'); // 外圈
+  grad.addColorStop(1.00, '#229c9b'); // 最外圈偏深湖绿
 
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 云雾点缀（模糊+淡色+无中心白斑）
-  for (let i = 0; i < 12; i++) {
+  // 水面柔和波光（青绿调）
+  for (let i = 0; i < 18; i++) {
     ctx.save();
-    ctx.globalAlpha = 0.03 + Math.random() * 0.045;
-    ctx.filter = `blur(${18 + Math.random() * 10}px)`;
+    ctx.globalAlpha = 0.04 + Math.random() * 0.03;
+    ctx.filter = `blur(${14 + Math.random() * 11}px)`;
     ctx.beginPath();
     const x = Math.random() * canvas.width;
-    const y = Math.random() * canvas.height * 0.8 + canvas.height * 0.1;
-    const rx = 50 + Math.random() * 90;
-    const ry = 36 + Math.random() * 65;
+    const y = Math.random() * canvas.height * 0.85 + canvas.height * 0.07;
+    const rx = 48 + Math.random() * 60;
+    const ry = 36 + Math.random() * 50;
     ctx.ellipse(x, y, rx, ry, Math.random() * Math.PI, 0, Math.PI * 2);
-    ctx.fillStyle = Math.random() > 0.7 ? '#e0f3fa' : '#badde6';
+    ctx.fillStyle = Math.random() > 0.6 ? '#b6fff5' : '#c5f8ee'; // 非纯白
     ctx.fill();
     ctx.restore();
   }
@@ -74,6 +74,7 @@ window.addEventListener('DOMContentLoaded', () => {
     `url(${canvas.toDataURL('image/png')})`;
   document.getElementById('loading').style.backgroundSize = 'cover';
 });
+
 
 
   </script>
