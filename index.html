@@ -164,8 +164,8 @@
 
           // 加载字体和生成3D字
           const fontLoader = new FontLoader();
-          fontLoader.load('/fonts/jinli.typeface.json', function(font) {
-            const textGeo = new TextGeometry('锦鲤 jin.li', {
+          fontLoader.load('/fonts/helvetiker_regular.typeface.json', function(font) {
+            const textGeo = new TextGeometry('jin.li', {
               font: font,
               size: 0.8,
               height: 0.01,
@@ -174,10 +174,11 @@
             });
             textGeo.computeBoundingBox();
 
-            // 自动中心校准
+            // 居中！用 geometry.translate 而不是 mesh.position
             const bbox = textGeo.boundingBox;
             const centerX = (bbox.max.x + bbox.min.x) / 2;
             const centerZ = (bbox.max.z + bbox.min.z) / 2;
+            textGeo.translate(-centerX, 0, -centerZ);
 
             const textMat = new THREE.MeshStandardMaterial({
               color: 0xffcc88,
@@ -188,11 +189,6 @@
             });
             textMesh = new THREE.Mesh(textGeo, textMat);
             textMesh.scale.z = 0.01;
-
-            // 核心：局部平移，使 mesh (0,0,0) 就在字中心
-            textMesh.position.x -= centerX;
-            textMesh.position.z -= centerZ;
-
             scene.add(textMesh);
 
             updateTextPosition();
@@ -232,9 +228,7 @@
       // 字放在鱼头正前方2.6单位，可调节距离
       const textPos = fishWorldPos.clone().add(fishDirection.multiplyScalar(2.6));
       textPos.y = water.position.y + 0.6; // 高度略高于湖面
-      textMesh.position.x += textPos.x;
-      textMesh.position.y = textPos.y;
-      textMesh.position.z += textPos.z;
+      textMesh.position.copy(textPos);
 
       // 平铺湖面
       textMesh.rotation.set(-Math.PI / 2, 0, 0);
