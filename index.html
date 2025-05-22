@@ -10,19 +10,18 @@
       position:fixed; top:0; left:0; right:0; bottom:0;
       display:flex; align-items:center; justify-content:center;
       font-family:sans-serif; font-size:1.2em; color:#fff;
-      background:#227171; /* 渐变加载前底色 */
+      background:transparent !important; /* 一定透明 */
       z-index:100;
       opacity: 1;
       transition: opacity 0.8s cubic-bezier(.45,0,.55,1);
       pointer-events: auto;
-      background-size: cover;
       text-shadow: 0 2px 8px #206668, 0 1px 2px #43b9b6;
     }
     #loading.hide {
       opacity: 0;
       pointer-events: none;
     }
-    canvas { display:block; }
+    /* 不要给canvas全局样式 */
   </style>
   <script type="importmap">
   {
@@ -33,104 +32,117 @@
     }
   }
   </script>
-  <script>
-window.addEventListener('DOMContentLoaded', () => {
-  const canvas = document.createElement('canvas');
-  canvas.width = window.innerWidth * 2;
-  canvas.height = window.innerHeight * 2;
-  canvas.style.width = '100vw';
-  canvas.style.height = '100vh';
-  canvas.style.position = 'fixed';
-  canvas.style.top = 0;
-  canvas.style.left = 0;
-  canvas.style.zIndex = -1;
-  document.body.appendChild(canvas);
-
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-
-  // 动态波光点参数
-  const spots = Array.from({length: 15}).map((_, i) => ({
-    x: Math.random() * W,
-    y: Math.random() * H * 0.8 + H * 0.1,
-    rx: 50 + Math.random() * 70,
-    ry: 38 + Math.random() * 48,
-    phase: Math.random() * Math.PI * 2,
-    speed: 0.4 + Math.random() * 0.8,
-    color: Math.random() > 0.5 ? '#c9fff4' : '#d3fff8',
-    alpha: 0.04 + Math.random() * 0.04
-  }));
-
-  function draw(t) {
-    // 1. 画主渐变
-    const grad = ctx.createRadialGradient(
-      W/2, H*0.52, W*0.03,
-      W/2, H/2, W/1.01
-    );
-    grad.addColorStop(0.00, '#82e5dc');
-    grad.addColorStop(0.20, '#63d1c9');
-    grad.addColorStop(0.46, '#51bfc1');
-    grad.addColorStop(0.85, '#3baab2');
-    grad.addColorStop(1.00, '#229c9b');
-    ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
-
-    // 2. 动态波光
-    spots.forEach((s, i) => {
-      ctx.save();
-      ctx.globalAlpha = s.alpha * (0.85 + 0.15 * Math.sin(t * 0.001 * s.speed + s.phase));
-      ctx.filter = `blur(${15 + Math.sin(t * 0.001 * (s.speed + i)) * 5}px)`;
-      ctx.beginPath();
-      // 水波缓慢浮动（y轴+椭圆大小有细微变化）
-      const yFloat = s.y + Math.sin(t * 0.0004 + s.phase + i) * 10;
-      const rx = s.rx + Math.sin(t * 0.0006 + i) * 3;
-      const ry = s.ry + Math.cos(t * 0.0006 + i) * 2.5;
-      ctx.ellipse(s.x, yFloat, rx, ry, s.phase + Math.sin(t * 0.0003 + i), 0, Math.PI * 2);
-      ctx.fillStyle = s.color;
-      ctx.fill();
-      ctx.restore();
-    });
-
-    ctx.globalAlpha = 1;
-    ctx.filter = 'none';
-    requestAnimationFrame(draw);
-  }
-
-  draw(0);
-
-  // 兼容窗口缩放
-  window.addEventListener('resize', () => {
-    canvas.width = window.innerWidth * 2;
-    canvas.height = window.innerHeight * 2;
-  });
-  
-  // 覆盖 loading 背景为透明，避免冲突
-  const loadingDiv = document.getElementById('loading');
-  if (loadingDiv) {
-    loadingDiv.style.backgroundImage = '';
-    loadingDiv.style.background = 'transparent';
-  }
-});
-
-
-
-  </script>
 </head>
 <body>
   <div id="loading">加载中… 0%</div>
+  <!-- three.js 用于3D的canvas，只负责3D显示 -->
   <canvas id="canvas"></canvas>
+  <script>
+  // 动画水面背景canvas，独立于three.js
+  window.addEventListener('DOMContentLoaded', () => {
+    // 1. 创建并插入背景canvas
+    const bgCanvas = document.createElement('canvas');
+    bgCanvas.width = window.innerWidth * 2;
+    bgCanvas.height = window.innerHeight * 2;
+    bgCanvas.style.width = '100vw';
+    bgCanvas.style.height = '100vh';
+    bgCanvas.style.position = 'fixed';
+    bgCanvas.style.top = 0;
+    bgCanvas.style.left = 0;
+    bgCanvas.style.zIndex = -1;
+    document.body.insertBefore(bgCanvas, document.body.firstChild);
+
+    const ctx = bgCanvas.getContext('2d');
+    const getSize = () => [bgCanvas.width, bgCanvas.height];
+
+    // 波光参数
+    let W = bgCanvas.width, H = bgCanvas.height;
+    let spots = Array.from({length: 15}).map((_, i) => ({
+      x: Math.random() * W,
+      y: Math.random() * H * 0.8 + H * 0.1,
+      rx: 50 + Math.random() * 70,
+      ry: 38 + Math.random() * 48,
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.4 + Math.random() * 0.8,
+      color: Math.random() > 0.5 ? '#c9fff4' : '#d3fff8',
+      alpha: 0.04 + Math.random() * 0.04
+    }));
+
+    function draw(t) {
+      // 更新尺寸
+      [W, H] = getSize();
+      // 1. 主渐变
+      const grad = ctx.createRadialGradient(
+        W/2, H*0.52, W*0.03,
+        W/2, H/2, W/1.01
+      );
+      grad.addColorStop(0.00, '#82e5dc');
+      grad.addColorStop(0.20, '#63d1c9');
+      grad.addColorStop(0.46, '#51bfc1');
+      grad.addColorStop(0.85, '#3baab2');
+      grad.addColorStop(1.00, '#229c9b');
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+
+      // 2. 动态波光
+      spots.forEach((s, i) => {
+        ctx.save();
+        ctx.globalAlpha = s.alpha * (0.85 + 0.15 * Math.sin(t * 0.001 * s.speed + s.phase));
+        ctx.filter = `blur(${15 + Math.sin(t * 0.001 * (s.speed + i)) * 5}px)`;
+        ctx.beginPath();
+        // 水波缓慢浮动（y轴+椭圆大小有细微变化）
+        const yFloat = s.y + Math.sin(t * 0.0004 + s.phase + i) * 10;
+        const rx = s.rx + Math.sin(t * 0.0006 + i) * 3;
+        const ry = s.ry + Math.cos(t * 0.0006 + i) * 2.5;
+        ctx.ellipse(s.x, yFloat, rx, ry, s.phase + Math.sin(t * 0.0003 + i), 0, Math.PI * 2);
+        ctx.fillStyle = s.color;
+        ctx.fill();
+        ctx.restore();
+      });
+
+      ctx.globalAlpha = 1;
+      ctx.filter = 'none';
+      requestAnimationFrame(draw);
+    }
+    draw(0);
+
+    // 响应窗口缩放
+    window.addEventListener('resize', () => {
+      bgCanvas.width = window.innerWidth * 2;
+      bgCanvas.height = window.innerHeight * 2;
+      // 重置波光位置
+      W = bgCanvas.width; H = bgCanvas.height;
+      spots = Array.from({length: 15}).map((_, i) => ({
+        x: Math.random() * W,
+        y: Math.random() * H * 0.8 + H * 0.1,
+        rx: 50 + Math.random() * 70,
+        ry: 38 + Math.random() * 48,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.4 + Math.random() * 0.8,
+        color: Math.random() > 0.5 ? '#c9fff4' : '#d3fff8',
+        alpha: 0.04 + Math.random() * 0.04
+      }));
+    });
+
+    // loading 遮罩透明
+    const loadingDiv = document.getElementById('loading');
+    if (loadingDiv) {
+      loadingDiv.style.background = 'transparent';
+    }
+  });
+  </script>
+
+  <!-- three.js 3D场景，透明渲染 -->
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'examples/controls/OrbitControls.js';
-    import { GLTFLoader }  from 'examples/loaders/GLTFLoader.js';
-    import { Water }       from 'examples/objects/Water.js';
-    import { RGBELoader }  from 'examples/loaders/RGBELoader.js';
+    import { GLTFLoader } from 'examples/loaders/GLTFLoader.js';
+    import { Water } from 'examples/objects/Water.js';
+    import { RGBELoader } from 'examples/loaders/RGBELoader.js';
 
     let scene, camera, renderer, clock, mixer, water;
     const loadingDiv = document.getElementById('loading');
-
-    // 记录主要资源加载情况，全部加载完再淡出 loading
     let resourcesLoaded = 0;
     const totalResources = 3; // skybox.hdr、waternormals.jpg、koi.glb
 
@@ -151,24 +163,27 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // 场景 & 时钟 & 相机
       scene = new THREE.Scene();
       clock = new THREE.Clock();
       camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
       camera.position.set(1, 12, 3);
       camera.lookAt(0, 0, 0);
 
-      // 渲染器
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas: document.getElementById('canvas') });
+      // alpha:true, 让三维canvas透明，不覆盖动画水面
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        canvas: document.getElementById('canvas')
+      });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.shadowMap.enabled = true;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 0.6;
-      renderer.setClearColor(0x0077be, 1);
+      // 不要 setClearColor
 
-      // 1. 加载 HDR 环境贴图（加载完成后调用 tryHideLoading）
+      // 环境贴图
       new RGBELoader().load('/textures/skybox.hdr', function (texture) {
         texture.mapping = THREE.EquirectangularReflectionMapping;
         scene.environment = texture;
@@ -176,10 +191,8 @@ window.addEventListener('DOMContentLoaded', () => {
         tryHideLoading();
       });
 
-      // 保留 sunPos 供光照
+      // 灯光
       const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
-
-      // ===== 光照：更自然风格 =====
       scene.add(new THREE.HemisphereLight(0xffffff, 0x444488, 0.25));
       const dirLight = new THREE.DirectionalLight(0xfff4e0, 1.15);
       dirLight.position.copy(sunPos).multiplyScalar(60);
@@ -197,7 +210,7 @@ window.addEventListener('DOMContentLoaded', () => {
       sand.rotation.x = -Math.PI/2;
       scene.add(sand);
 
-      // 2. 果冻海水面（waternormals.jpg加载完成后tryHideLoading）
+      // 水面
       const waterGeo = new THREE.PlaneGeometry(200, 200);
       const waterNormals = new THREE.TextureLoader().load(
         '/textures/waternormals.jpg',
@@ -227,7 +240,7 @@ window.addEventListener('DOMContentLoaded', () => {
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
 
-      // 3. 加载锦鲤模型 & 初始朝向调整（koi.glb加载完成后tryHideLoading）
+      // 锦鲤模型
       const loader = new GLTFLoader();
       loader.load(
         '/models/koi.glb',
@@ -240,7 +253,6 @@ window.addEventListener('DOMContentLoaded', () => {
           gltf.scene.traverse(n => {
             if (n.isMesh) {
               n.castShadow = true;
-              // === 让锦鲤自然微亮 ===
               if(n.material) {
                 if(n.material.emissive) {
                   n.material.emissive.setHex(0xffe8d0);
