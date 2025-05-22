@@ -148,7 +148,6 @@
           gltf.scene.traverse(n => {
             if (n.isMesh) {
               n.castShadow = true;
-              // 保持自然感
               if(n.material) {
                 if("metalness" in n.material) n.material.metalness = 0.15;
                 if("roughness" in n.material) n.material.roughness = 0.4;
@@ -181,11 +180,10 @@
               emissiveIntensity: 0.05
             });
             textMesh = new THREE.Mesh(textGeo, textMat);
-            // 让字更薄（可调）
             textMesh.scale.z = 0.01;
             scene.add(textMesh);
 
-            // 设置初始字的位置（湖面上方，初始鱼头前）
+            // 设置初始字的位置
             updateTextPosition();
 
             tryHideLoading();
@@ -214,19 +212,20 @@
 
     function updateTextPosition() {
       if (!koi || !textMesh) return;
-      // 获取鱼头的世界坐标
+      // 获取鱼的世界坐标
       const fishWorldPos = new THREE.Vector3();
       koi.getWorldPosition(fishWorldPos);
       // 假设鱼头朝X轴正方向
       const fishDirection = new THREE.Vector3(1, 0, 0);
       fishDirection.applyQuaternion(koi.quaternion);
-      // 让文字在鱼头前2个单位，略高于水面
-      const textPos = fishWorldPos.clone().add(fishDirection.multiplyScalar(2.6)); // 2.6根据视觉效果调
-      textPos.y += 1.2; // 高度根据湖面高度微调
+
+      // 在鱼头正前方2.6单位距离，略高于湖面
+      const textPos = fishWorldPos.clone().add(fishDirection.multiplyScalar(2.6));
+      textPos.y = water.position.y + 0.6; // 高度略高于湖面（根据视觉微调）
       textMesh.position.copy(textPos);
 
-      // 让字水平贴湖面
-      textMesh.rotation.set(0, 0, 0);
+      // 平铺在湖面上，rotation.x = -Math.PI / 2
+      textMesh.rotation.set(-Math.PI / 2, 0, 0);
     }
 
     function animate() {
@@ -235,7 +234,7 @@
       mixer && mixer.update(dt);
       water && water.material.uniforms && (water.material.uniforms.time.value += dt*.4);
 
-      // 实时让字始终漂浮在鱼头前方湖面上
+      // 实时让字始终漂浮在鱼头正前方湖面上
       updateTextPosition();
 
       renderer.render(scene, camera);
