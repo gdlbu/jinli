@@ -10,12 +10,13 @@
       position:fixed; top:0; left:0; right:0; bottom:0;
       display:flex; align-items:center; justify-content:center;
       font-family:sans-serif; font-size:1.2em; color:#fff;
-      background:#227171; /* 兜底，渐变加载前颜色 */
+      background:#227171; /* 渐变加载前底色 */
       z-index:100;
       opacity: 1;
       transition: opacity 0.8s cubic-bezier(.45,0,.55,1);
       pointer-events: auto;
       background-size: cover;
+      text-shadow: 0 2px 8px #206668, 0 1px 2px #43b9b6;
     }
     #loading.hide {
       opacity: 0;
@@ -32,33 +33,31 @@
     }
   }
   </script>
-  <!-- Canvas渐变背景生成脚本（加在head里即可） -->
   <script>
   window.addEventListener('DOMContentLoaded', () => {
     const canvas = document.createElement('canvas');
-    // 推荐用当前窗口尺寸更自然
-    canvas.width = window.innerWidth * 2; // 高清适配
+    canvas.width = window.innerWidth * 2;
     canvas.height = window.innerHeight * 2;
     const ctx = canvas.getContext('2d');
-    // 渐变中心偏上（更像湖面高光）
+    // 中心色降低亮度，整体柔和
     const grad = ctx.createRadialGradient(
       canvas.width/2, canvas.height/3, canvas.width/10,
       canvas.width/2, canvas.height/2, canvas.width/1.2
     );
-    grad.addColorStop(0, '#7feee8');   // 中心亮青绿
-    grad.addColorStop(0.55, '#43b9b6'); // 中间
-    grad.addColorStop(1, '#227171');   // 四周深蓝绿
+    grad.addColorStop(0, '#4dc6b9');    // 中心色较深
+    grad.addColorStop(0.6, '#43b9b6');  // 中间
+    grad.addColorStop(1, '#227171');    // 外圈深蓝绿
     ctx.fillStyle = grad;
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    // 可选：叠加一些柔和“水纹”气泡
-    for(let i=0; i<50; i++) {
-      ctx.globalAlpha = 0.08 + Math.random() * 0.08;
+    // “水泡/水纹”柔和点缀
+    for(let i=0; i<40; i++) {
+      ctx.globalAlpha = 0.07 + Math.random() * 0.06;
       ctx.beginPath();
       let x = Math.random()*canvas.width, y = Math.random()*canvas.height*0.7+canvas.height*0.1;
       let r = 24 + Math.random()*64;
       ctx.arc(x, y, r, 0, 2*Math.PI);
-      ctx.fillStyle = i%2==0 ? '#c3f6f7' : '#e3ffff';
+      ctx.fillStyle = i%2==0 ? '#b3e3e1' : '#e3ffff';
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -131,16 +130,11 @@
       const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
 
       // ===== 光照：更自然风格 =====
-      // 1. 环境光，偏冷、弱
       scene.add(new THREE.HemisphereLight(0xffffff, 0x444488, 0.25));
-
-      // 2. 主方向光，暖色、亮度适中
       const dirLight = new THREE.DirectionalLight(0xfff4e0, 1.15);
       dirLight.position.copy(sunPos).multiplyScalar(60);
       dirLight.castShadow = true;
       scene.add(dirLight);
-
-      // 3. 边缘光，天蓝色、较弱
       const rimLight = new THREE.DirectionalLight(0xbfdfff, 0.45);
       rimLight.position.set(-10, 15, -15);
       scene.add(rimLight);
@@ -198,12 +192,10 @@
               n.castShadow = true;
               // === 让锦鲤自然微亮 ===
               if(n.material) {
-                // 材质自发光（淡暖色，微弱）
                 if(n.material.emissive) {
                   n.material.emissive.setHex(0xffe8d0);
                   n.material.emissiveIntensity = 0.05;
                 }
-                // 适当提升高光表现
                 if("metalness" in n.material) n.material.metalness = 0.15;
                 if("roughness" in n.material) n.material.roughness = 0.4;
               }
