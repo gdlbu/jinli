@@ -215,16 +215,16 @@
       // 获取鱼的世界坐标
       const fishWorldPos = new THREE.Vector3();
       koi.getWorldPosition(fishWorldPos);
-      // 假设鱼头朝X轴正方向
-      const fishDirection = new THREE.Vector3(1, 0, 0);
+      // 鱼头朝向 -Z 轴
+      const fishDirection = new THREE.Vector3(0, 0, -1);
       fishDirection.applyQuaternion(koi.quaternion);
 
-      // 在鱼头正前方2.6单位距离，略高于湖面
+      // 字放在鱼头正前方2.6单位，可调节距离
       const textPos = fishWorldPos.clone().add(fishDirection.multiplyScalar(2.6));
-      textPos.y = water.position.y + 0.6; // 高度略高于湖面（根据视觉微调）
+      textPos.y = water.position.y + 0.6; // 高度略高于湖面
       textMesh.position.copy(textPos);
 
-      // 平铺在湖面上，rotation.x = -Math.PI / 2
+      // 平铺湖面
       textMesh.rotation.set(-Math.PI / 2, 0, 0);
     }
 
@@ -234,7 +234,7 @@
       mixer && mixer.update(dt);
       water && water.material.uniforms && (water.material.uniforms.time.value += dt*.4);
 
-      // 实时让字始终漂浮在鱼头正前方湖面上
+      // 字始终漂浮在鱼头正前方湖面上
       updateTextPosition();
 
       renderer.render(scene, camera);
