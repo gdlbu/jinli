@@ -167,7 +167,7 @@
           fontLoader.load('/fonts/jinli.typeface.json', function(font) {
             const textGeo = new TextGeometry('锦鲤 jin.li', {
               font: font,
-              size: 0.8,
+              size: 0.5,
               height: 0.01,
               curveSegments: 3,
               bevelEnabled: false
@@ -226,7 +226,7 @@
       fishDirection.applyQuaternion(koi.quaternion);
 
       // 字放在鱼头正前方2.6单位，可调节距离
-      const textPos = fishWorldPos.clone().add(fishDirection.multiplyScalar(2.8));
+      const textPos = fishWorldPos.clone().add(fishDirection.multiplyScalar(3));
       textPos.y = water.position.y + 0.6; // 高度略高于湖面
       textMesh.position.copy(textPos);
 
