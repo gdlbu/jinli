@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>锦鲤 jin.li</title>
+  <style>
+    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; }
+    #loading {
+      position:fixed; top:0; left:0; right:0; bottom:0;
+      display:flex; align-items:center; justify-content:center;
+      font-family:sans-serif; font-size:1.2em; color:#fff;
+      background:#227171; /* 渐变加载前底色 */
+      z-index:100;
+      opacity: 1;
+      transition: opacity 0.8s cubic-bezier(.45,0,.55,1);
+      pointer-events: auto;
+      background-size: cover;
+      text-shadow: 0 2px 8px #206668, 0 1px 2px #43b9b6;
+    }
+    #loading.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+    canvas { display:block; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "/three/three.module.js",
+      "three/": "/three/",
+      "examples/": "/three/examples/jsm/"
+    }
+  }
+  </script>
+  <script>
+  window.addEventListener('DOMContentLoaded', () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = window.innerWidth * 2;
+    canvas.height = window.innerHeight * 2;
+    const ctx = canvas.getContext('2d');
+    // 中心色降低亮度，整体柔和
+    const grad = ctx.createRadialGradient(
+      canvas.width/2, canvas.height/3, canvas.width/10,
+      canvas.width/2, canvas.height/2, canvas.width/1.2
+    );
+    grad.addColorStop(0, '#4dc6b9');    // 中心色较深
+    grad.addColorStop(0.6, '#43b9b6');  // 中间
+    grad.addColorStop(1, '#227171');    // 外圈深蓝绿
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // “水泡/水纹”柔和点缀
+    for(let i=0; i<40; i++) {
+      ctx.globalAlpha = 0.07 + Math.random() * 0.06;
+      ctx.beginPath();
+      let x = Math.random()*canvas.width, y = Math.random()*canvas.height*0.7+canvas.height*0.1;
+      let r = 24 + Math.random()*64;
+      ctx.arc(x, y, r, 0, 2*Math.PI);
+      ctx.fillStyle = i%2==0 ? '#b3e3e1' : '#e3ffff';
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    document.getElementById('loading').style.backgroundImage =
+      `url(${canvas.toDataURL('image/png')})`;
+    document.getElementById('loading').style.backgroundSize = 'cover';
+  });
+  </script>
+</head>
+<body>
+  <div id="loading">加载中… 0%</div>
+  <canvas id="canvas"></canvas>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'examples/controls/OrbitControls.js';
+    import { GLTFLoader }  from 'examples/loaders/GLTFLoader.js';
+    import { Water }       from 'examples/objects/Water.js';
+    import { RGBELoader }  from 'examples/loaders/RGBELoader.js';
+
+    let scene, camera, renderer, clock, mixer, water;
+    const loadingDiv = document.getElementById('loading');
+
+    // 记录主要资源加载情况，全部加载完再淡出 loading
+    let resourcesLoaded = 0;
+    const totalResources = 3; // skybox.hdr、waternormals.jpg、koi.glb
+
+    function tryHideLoading() {
+      resourcesLoaded++;
+      if (resourcesLoaded >= totalResources) {
+        loadingDiv.classList.add('hide');
+        setTimeout(() => { loadingDiv.style.display = 'none'; }, 800);
+      }
+    }
+
+    init();
+    animate();
+
+    function init() {
+      if (window.location.protocol === 'file:') {
+        loadingDiv.innerText = '⚠️ 请通过 HTTP 服务器打开此页面';
+        return;
+      }
+
+      // 场景 & 时钟 & 相机
+      scene = new THREE.Scene();
+      clock = new THREE.Clock();
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+      camera.position.set(1, 12, 3);
+      camera.lookAt(0, 0, 0);
+
+      // 渲染器
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas: document.getElementById('canvas') });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.shadowMap.enabled = true;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 0.6;
+      renderer.setClearColor(0x0077be, 1);
+
+      // 1. 加载 HDR 环境贴图（加载完成后调用 tryHideLoading）
+      new RGBELoader().load('/textures/skybox.hdr', function (texture) {
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        scene.environment = texture;
+        scene.background = texture;
+        tryHideLoading();
+      });
+
+      // 保留 sunPos 供光照
+      const sunPos = new THREE.Vector3().setFromSphericalCoords(1, Math.PI * 0.4, Math.PI * 0.25);
+
+      // ===== 光照：更自然风格 =====
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x444488, 0.25));
+      const dirLight = new THREE.DirectionalLight(0xfff4e0, 1.15);
+      dirLight.position.copy(sunPos).multiplyScalar(60);
+      dirLight.castShadow = true;
+      scene.add(dirLight);
+      const rimLight = new THREE.DirectionalLight(0xbfdfff, 0.45);
+      rimLight.position.set(-10, 15, -15);
+      scene.add(rimLight);
+
+      // 沙底
+      const sand = new THREE.Mesh(
+        new THREE.PlaneGeometry(200, 200),
+        new THREE.MeshStandardMaterial({ color: 0xDDCBA0, roughness: 1 })
+      );
+      sand.rotation.x = -Math.PI/2;
+      scene.add(sand);
+
+      // 2. 果冻海水面（waternormals.jpg加载完成后tryHideLoading）
+      const waterGeo = new THREE.PlaneGeometry(200, 200);
+      const waterNormals = new THREE.TextureLoader().load(
+        '/textures/waternormals.jpg',
+        tex => {
+          tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+          tex.repeat.set(16, 16);
+          tryHideLoading();
+        }
+      );
+      water = new Water(waterGeo, {
+        textureWidth: 512,
+        textureHeight: 512,
+        waterNormals,
+        sunDirection: sunPos.clone().normalize(),
+        sunColor: 0xffffff,
+        waterColor: 0x40E0D0,
+        distortionScale: 3.2,
+        fog: false
+      });
+      water.rotation.x = -Math.PI/2;
+      water.position.y = 0.1;
+      water.material.transparent = true;
+      water.material.opacity = 0.95;
+      scene.add(water);
+
+      // 控制器
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      // 3. 加载锦鲤模型 & 初始朝向调整（koi.glb加载完成后tryHideLoading）
+      const loader = new GLTFLoader();
+      loader.load(
+        '/models/koi.glb',
+        gltf => {
+          gltf.scene.rotation.y = Math.PI;
+          mixer = new THREE.AnimationMixer(gltf.scene);
+          gltf.animations.forEach(c => mixer.clipAction(c).play());
+          gltf.scene.scale.set(12, 12, 12);
+          gltf.scene.position.y = water.position.y+1;
+          gltf.scene.traverse(n => {
+            if (n.isMesh) {
+              n.castShadow = true;
+              // === 让锦鲤自然微亮 ===
+              if(n.material) {
+                if(n.material.emissive) {
+                  n.material.emissive.setHex(0xffe8d0);
+                  n.material.emissiveIntensity = 0.05;
+                }
+                if("metalness" in n.material) n.material.metalness = 0.15;
+                if("roughness" in n.material) n.material.roughness = 0.4;
+              }
+            }
+          });
+          scene.add(gltf.scene);
+          tryHideLoading();
+        },
+        xhr => {
+          if (xhr.lengthComputable) {
+            const pct = Math.round(xhr.loaded / xhr.total * 100);
+            loadingDiv.innerText = `加载中… ${pct}%`;
+          } else {
+            const kb = (xhr.loaded / 1024).toFixed(1);
+            loadingDiv.innerText = `加载中… ${kb} KB`;
+          }
+        },
+        err => loadingDiv.innerText = '🚨 模型加载失败'
+      );
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = clock.getDelta();
+      mixer && mixer.update(dt);
+      water && water.material.uniforms && (water.material.uniforms.time.value += dt*.4);
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>
