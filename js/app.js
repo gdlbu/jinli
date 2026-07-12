@@ -88,8 +88,8 @@ function daypreset () {
   const P = {
     night: { name:'night', exposure:.62, bgInt:.42, hemi:.32, dir:.62, dirColor:0xbcd2ff, rim:.34,
              waterColor:0x0e4d5e, sunColor:0xa8c4ff, bloom:.5,  fog:0x0b2f3a, fogD:0.0045 },
-    gold:  { name:'gold',  exposure:.68, bgInt:.85, hemi:.30, dir:1.05, dirColor:0xffc98a, rim:.42,
-             waterColor:0x17777d, sunColor:0xffd9a0, bloom:.34, fog:0x123a3f, fogD:0.0042 },
+    gold:  { name:'gold',  exposure:.72, bgInt:.8,  hemi:.30, dir:1.05, dirColor:0xffc98a, rim:.42,
+             waterColor:0x11666d, sunColor:0xffd9a0, bloom:.34, fog:0x123a3f, fogD:0.0038 },
     day:   { name:'day',   exposure:.78, bgInt:1.0, hemi:.40, dir:1.22, dirColor:0xfff4e0, rim:.46,
              waterColor:0x158a88, sunColor:0xffffff, bloom:.24, fog:0x134045, fogD:0.0035 },
   };
@@ -369,7 +369,7 @@ new GLTFLoader(manager).load('/models/koi.glb', gltf => {
       heading: Math.random() * Math.PI * 2,
       speed: 1.1 + Math.random() * .5,
       baseSpeed: 1.1 + Math.random() * .5,
-      depth: -0.55 - Math.random() * .7,
+      depth: -0.85 - Math.random() * .6,
       wanderPh: Math.random() * 100,
       bank: 0, jump: null,
     };
@@ -440,7 +440,7 @@ function updateKois (dt, t) {
     k.z += Math.cos(k.heading) * k.speed * dt;
 
     // 上下起伏
-    const y = k.depth + Math.sin(t * .7 + k.wanderPh) * .16;
+    const y = k.depth + Math.sin(t * .7 + k.wanderPh) * .1;
 
     k.root.position.set(k.x, y, k.z);
     k.root.rotation.set(0, k.heading, k.bank * .04);
