@@ -80,22 +80,9 @@ const FORTUNES = [
   { g:'大吉', p:['两岸猿声啼不住','轻舟已过万重山'], n:'难关已过，前程放晴。',     y:'宜 庆祝', j:'忌 多虑' },
 ];
 
-// ------------------------------------------------ 昼夜氛围
-function daypreset () {
-  const forced = new URLSearchParams(location.search).get('sky');
-  const h = new Date().getHours();
-  const key = forced || ((h >= 20 || h < 5) ? 'night' : (h < 7 || h >= 17) ? 'gold' : 'day');
-  const P = {
-    night: { name:'night', exposure:.62, bgInt:.42, hemi:.32, dir:.62, dirColor:0xbcd2ff, rim:.34,
-             waterColor:0x0e4d5e, sunColor:0xa8c4ff, bloom:.5,  fog:0x0b2f3a, fogD:0.0045 },
-    gold:  { name:'gold',  exposure:.72, bgInt:.8,  hemi:.30, dir:1.05, dirColor:0xffc98a, rim:.42,
-             waterColor:0x11666d, sunColor:0xffd9a0, bloom:.34, fog:0x123a3f, fogD:0.0038 },
-    day:   { name:'day',   exposure:.78, bgInt:1.0, hemi:.40, dir:1.22, dirColor:0xfff4e0, rim:.46,
-             waterColor:0x158a88, sunColor:0xffffff, bloom:.24, fog:0x134045, fogD:0.0035 },
-  };
-  return P[key] || P.day;
-}
-const DAY = daypreset();
+// ------------------------------------------------ 白天氛围（固定）
+const DAY = { exposure:.82, bgInt:1.0, hemi:.42, dir:1.28, dirColor:0xfff4e0, rim:.46,
+              waterColor:0x137e7c, sunColor:0xffffff, bloom:.22, fog:0x0e3438, fogD:0.0026 };
 
 // ------------------------------------------------ 加载
 const loadingDiv = document.getElementById('loading');
@@ -197,6 +184,7 @@ function makeCausticsTexture () {
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
+const SAND_Y = -2.4;                 // 池底深度
 const sandTex = makeCausticsTexture();
 sandTex.repeat.set(7, 7);
 const sand = new THREE.Mesh(
@@ -204,27 +192,50 @@ const sand = new THREE.Mesh(
   new THREE.MeshStandardMaterial({ map: sandTex, color: 0x9c8c66, roughness: 1 })
 );
 sand.rotation.x = -Math.PI / 2;
-sand.position.y = -3.2;
+sand.position.y = SAND_Y;
 sand.receiveShadow = true;
 scene.add(sand);
 
-// 卵石
+// 卵石：不规则圆润石头（顶点噪声位移），自然散布与聚簇
 {
-  const rockGeo = new THREE.SphereGeometry(1, 7, 5);
-  const rockMat = new THREE.MeshStandardMaterial({ color: 0x8b8073, roughness: .95 });
-  const rocks = new THREE.InstancedMesh(rockGeo, rockMat, 42);
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-  for (let i = 0; i < 42; i++) {
-    const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 30;
-    const sx = .5 + Math.random() * 1.6;
-    e.set(Math.random(), Math.random() * 6, Math.random()); q.setFromEuler(e);
-    m.compose(
-      new THREE.Vector3(Math.cos(a) * r, -2.55, Math.sin(a) * r),
-      q, new THREE.Vector3(sx, sx * (.4 + Math.random() * .35), sx * (.7 + Math.random() * .5))
-    );
-    rocks.setMatrixAt(i, m);
+  const base = new THREE.IcosahedronGeometry(1, 2);
+  const pos = base.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    // 几个低频正弦叠加 → 石头的凹凸；再整体压扁成鹅卵石
+    const n = 0.10 * Math.sin(v.x * 3.1 + 1.7) * Math.cos(v.y * 2.7)
+            + 0.07 * Math.sin(v.z * 4.3 + 0.4)
+            + 0.05 * Math.cos(v.x * 6.0) * Math.sin(v.z * 5.2);
+    v.multiplyScalar(1 + n);
+    v.y *= 0.62;
+    pos.setXYZ(i, v.x, v.y, v.z);
   }
-  rocks.receiveShadow = true;
+  base.computeVertexNormals();
+
+  const ROCK_N = 34;
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .9, metalness: .02 });
+  const rocks = new THREE.InstancedMesh(base, rockMat, ROCK_N);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+  const col = new THREE.Color();
+  // 青灰／褐灰的天然石色
+  const palette = [0x6f6a60, 0x7d7468, 0x5c5b57, 0x847c6d, 0x615f5a, 0x8a8175];
+  // 3 个石簇 + 零散
+  const clusters = [];
+  for (let c = 0; c < 3; c++) { const a = Math.random() * 6.28, r = 8 + Math.random() * 16; clusters.push({ x: Math.cos(a) * r, z: Math.sin(a) * r }); }
+  for (let i = 0; i < ROCK_N; i++) {
+    let cx, cz;
+    if (i < ROCK_N * .6) { const c = clusters[i % clusters.length]; cx = c.x + (Math.random() - .5) * 6; cz = c.z + (Math.random() - .5) * 6; }
+    else { const a = Math.random() * 6.28, r = 4 + Math.random() * 28; cx = Math.cos(a) * r; cz = Math.sin(a) * r; }
+    const s = .35 + Math.random() * .75;         // 小卵石，绝不顶到水面
+    e.set(Math.random() * .5, Math.random() * 6.28, Math.random() * .5); q.setFromEuler(e);
+    const sink = SAND_Y + s * .32;                // 底面埋进沙里，只露大半
+    m.compose(new THREE.Vector3(cx, sink, cz), q, new THREE.Vector3(s * (.95 + Math.random() * .25), s * .68, s * (.95 + Math.random() * .25)));
+    rocks.setMatrixAt(i, m);
+    col.setHex(palette[i % palette.length]).multiplyScalar(.82 + Math.random() * .3);
+    rocks.setColorAt(i, col);
+  }
+  rocks.receiveShadow = true; rocks.castShadow = !isMobile;
   scene.add(rocks);
 }
 
@@ -257,7 +268,7 @@ const rippleUniforms = {
 };
 const rippleMat = new THREE.ShaderMaterial({
   transparent: true, depthWrite: false,
-  blending: THREE.AdditiveBlending,
+  blending: THREE.NormalBlending,
   uniforms: rippleUniforms,
   vertexShader: /* glsl */`
     varying vec2 vPos;
@@ -269,25 +280,28 @@ const rippleMat = new THREE.ShaderMaterial({
     uniform float uTime;
     uniform vec4 uRipples[${MAX_RIPPLES}];
     varying vec2 vPos;
+    // 物理感涟漪：波包扩散（约1.4m/s），2-3 圈尾随波纹，
+    // 振幅随距离 1/r 摊薄、随时间指数衰减；波峰亮波谷暗（拟反光扰动）
     void main(){
-      float a = 0.0;
+      float w = 0.0;
       for (int i = 0; i < ${MAX_RIPPLES}; i++){
         vec4 rp = uRipples[i];
         float age = uTime - rp.z;
-        if (age < 0.0 || age > 3.2) continue;
+        if (age < 0.0 || age > 4.5) continue;
         float d = distance(vPos, rp.xy);
-        float front = age * 3.4;                       // 波前扩散速度
-        float band = exp(-pow((d - front) * 2.2, 2.0)); // 波前高斯带
-        float rings = 0.5 + 0.5 * cos((d - front) * 9.0);
-        float fade = (1.0 - age / 3.2);
-        a += band * rings * fade * fade * rp.w;
+        float x = d - (0.25 + age * 1.4);           // 距波前
+        float envelope = exp(-x * x * 3.2);          // 波包宽度（2-3圈）
+        float amp = rp.w * exp(-age * 0.6) / (1.0 + d * 0.4);
+        w += sin(x * 11.0) * envelope * amp;
       }
-      gl_FragColor = vec4(vec3(0.75, 1.0, 0.95), a * 0.5);
+      float s = clamp(w * 3.0, -1.0, 1.0);
+      vec3 col = mix(vec3(0.01, 0.09, 0.10), vec3(0.80, 0.97, 0.93), s * 0.5 + 0.5);
+      gl_FragColor = vec4(col, abs(s) * 0.42);
     }`
 });
 const ripplePlane = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), rippleMat);
 ripplePlane.rotation.x = -Math.PI / 2;
-ripplePlane.position.y = 0.06;
+ripplePlane.position.y = 0.09;
 scene.add(ripplePlane);
 let rippleIdx = 0;
 function addRipple (x, z, strength = 1) {
@@ -295,25 +309,55 @@ function addRipple (x, z, strength = 1) {
   rippleIdx = (rippleIdx + 1) % MAX_RIPPLES;
 }
 
-// ---------------- 花瓣 ----------------
+// ---------------- 花瓣（樱瓣形 + 微卷曲，飘落有横摆翻转） ----------------
 let petals = null;
 if (!reducedMotion) {
-  const pc = document.createElement('canvas'); pc.width = pc.height = 64;
+  // 樱花瓣纹理：心形尖端带缺口，基部白、缘部粉，边缘微深
+  const pc = document.createElement('canvas'); pc.width = 128; pc.height = 128;
   const pg = pc.getContext('2d');
-  pg.translate(32, 32); pg.rotate(.5);
-  const grad = pg.createLinearGradient(-14, -18, 10, 16);
-  grad.addColorStop(0, 'rgba(255,214,224,.95)'); grad.addColorStop(1, 'rgba(244,150,178,.9)');
+  pg.translate(64, 64);
+  const grad = pg.createLinearGradient(0, 52, 0, -56);
+  grad.addColorStop(0, '#fff8f9');   // 基部近白
+  grad.addColorStop(.55, '#fbd7e1');
+  grad.addColorStop(1, '#f2aec4');   // 尖端粉
   pg.fillStyle = grad;
-  pg.beginPath(); pg.ellipse(0, 0, 11, 17, 0, 0, Math.PI * 2); pg.fill();
+  pg.beginPath();
+  pg.moveTo(0, 52);                                    // 基部
+  pg.bezierCurveTo(-34, 40, -42, -8, -20, -40);        // 左缘
+  pg.quadraticCurveTo(-8, -54, 0, -38);                // 尖端缺口左
+  pg.quadraticCurveTo(8, -54, 20, -40);                // 尖端缺口右
+  pg.bezierCurveTo(42, -8, 34, 40, 0, 52);             // 右缘
+  pg.closePath(); pg.fill();
+  // 中脉与边缘淡影
+  pg.strokeStyle = 'rgba(233,150,180,.35)'; pg.lineWidth = 2;
+  pg.beginPath(); pg.moveTo(0, 46); pg.quadraticCurveTo(2, 0, 0, -30); pg.stroke();
   const petalTex = new THREE.CanvasTexture(pc);
-  const N = isMobile ? 10 : 16;
+  petalTex.colorSpace = THREE.SRGBColorSpace;
+
+  // 几何：细分平面 + 沿宽度微卷曲，不再是死平面
+  const pgeo = new THREE.PlaneGeometry(.30, .34, 4, 4);
+  {
+    const pp = pgeo.attributes.position;
+    for (let i = 0; i < pp.count; i++) {
+      const x = pp.getX(i), y = pp.getY(i);
+      pp.setZ(i, (x * x) * .55 + Math.abs(y) * y * .12);   // 横向卷 + 纵向轻弯
+    }
+    pgeo.computeVertexNormals();
+  }
+  const N = isMobile ? 8 : 12;
   petals = { list: [], mesh: new THREE.InstancedMesh(
-    new THREE.PlaneGeometry(.42, .58),
-    new THREE.MeshBasicMaterial({ map: petalTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }),
+    pgeo,
+    new THREE.MeshStandardMaterial({ map: petalTex, transparent: true, alphaTest: .08,
+      side: THREE.DoubleSide, depthWrite: false, roughness: .8, metalness: 0 }),
     N) };
   for (let i = 0; i < N; i++) petals.list.push({
-    x: (Math.random() - .5) * 34, y: 2 + Math.random() * 12, z: (Math.random() - .5) * 34,
-    vy: .25 + Math.random() * .3, ph: Math.random() * 6.28, spin: Math.random() * 6.28, onWater: -1
+    x: (Math.random() - .5) * 30, y: 2 + Math.random() * 10, z: (Math.random() - .5) * 30,
+    vy: .12 + Math.random() * .12,               // 花瓣终速很慢（空气阻力）
+    ph: Math.random() * 6.28,
+    swayA: .8 + Math.random() * .8,              // 横摆幅度
+    swayF: .55 + Math.random() * .4,             // 横摆频率
+    tumble: .6 + Math.random() * .9,             // 翻转速度
+    onWater: -1
   });
   scene.add(petals.mesh);
 }
@@ -330,6 +374,7 @@ const VARIANTS = [
 ];
 const KOI_N = isMobile ? 5 : 6;
 const kois = [];
+const DEBUG_DIR = /debug/.test(location.search);   // ?debug 显示速度方向箭头
 let koiTemplate = null, koiAnims = null;
 
 new GLTFLoader(manager).load('/models/koi.glb', gltf => {
@@ -338,8 +383,9 @@ new GLTFLoader(manager).load('/models/koi.glb', gltf => {
   const swimClips = koiAnims.filter(c => /swim_A\d/.test(c.name));
   for (let i = 0; i < KOI_N; i++) {
     const root = new THREE.Group();
+    root.rotation.order = 'YXZ';               // 偏航→俯仰→侧倾
     const model = SkeletonUtils.clone(koiTemplate);
-    model.rotation.y = Math.PI;                 // 模型鼻头朝 root 的 +Z
+    // 校准（calib.html 顶视验证）：模型鼻头即 +Z，与前进向量 (sinθ, cosθ) 一致，无需翻转
     const v = VARIANTS[i % VARIANTS.length];
     model.traverse(n => {
       if (n.isMesh) {
@@ -363,18 +409,21 @@ new GLTFLoader(manager).load('/models/koi.glb', gltf => {
     action.time = Math.random() * clip.duration;
 
     const a = (i / KOI_N) * Math.PI * 2;
+    const cruise = .55 + Math.random() * .35;
     const koi = {
       root, mixer, action, scale,
       x: Math.cos(a) * 6, z: Math.sin(a) * 6,
       heading: Math.random() * Math.PI * 2,
-      speed: 1.1 + Math.random() * .5,
-      baseSpeed: 1.1 + Math.random() * .5,
+      speed: cruise, baseSpeed: cruise,
+      angVel: 0,                                 // 当前角速度 rad/s（惯性转向）
       depth: -0.85 - Math.random() * .6,
       wanderPh: Math.random() * 100,
-      bank: 0, jump: null,
+      wanderTarget: null, wanderUntil: 0,        // 闲游目标点
+      roll: 0, pitch: 0, jump: null,
     };
     root.position.set(koi.x, koi.depth, koi.z);
     scene.add(root);
+    if (DEBUG_DIR) { koi.arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(), 3.2, 0xffee00, .8, .5); scene.add(koi.arrow); }
     kois.push(koi);
   }
 }, undefined, () => { pctEl.textContent = '模型加载失败'; });
@@ -382,73 +431,96 @@ new GLTFLoader(manager).load('/models/koi.glb', gltf => {
 // 鱼群目标（涟漪吸引）
 const attract = { x: 0, z: 0, until: -1 };
 
+// 角度归一到 [-π, π]
+function wrapAngle (a) {
+  while (a >  Math.PI) a -= Math.PI * 2;
+  while (a < -Math.PI) a += Math.PI * 2;
+  return a;
+}
+
+const MAX_TURN = 1.3;        // 最大角速度 rad/s（鱼不能瞬间掉头）
+const TURN_ACC = 2.6;        // 角加速度：转向需要时间建立/消解
+const KOI_ACCEL = 0.9;       // 直线加减速
+
 function updateKois (dt, t) {
   for (const k of kois) {
     if (k.jump) { updateJump(k, dt, t); continue; }
-    // —— 转向决策 ——
-    k.wanderPh += dt;
-    let steer = Math.sin(k.wanderPh * .6) * .5 + Math.sin(k.wanderPh * .23 + 2) * .35;
 
-    // 涟漪吸引
+    // —— 1. 求“期望朝向” desired（把各种影响合成为一个目标方向向量）——
+    let wantX = Math.sin(k.heading), wantZ = Math.cos(k.heading); // 默认保持直行
+    let urgency = 0;         // 转向紧迫度 0..1，越大越急、也越减速
     let feeding = false;
+
+    // 闲游：每隔几秒挑一个池内目标点，缓缓游过去（自然的巡游感）
+    if (!k.wanderTarget || t > k.wanderUntil ||
+        Math.hypot(k.wanderTarget.x - k.x, k.wanderTarget.z - k.z) < 1.5) {
+      const a = Math.random() * Math.PI * 2, r = Math.random() * POOL_R * .6;
+      k.wanderTarget = { x: Math.cos(a) * r, z: Math.sin(a) * r };
+      k.wanderUntil = t + 5 + Math.random() * 6;
+    }
+    wantX = k.wanderTarget.x - k.x; wantZ = k.wanderTarget.z - k.z;
+
+    // 涟漪聚食：覆盖闲游目标，权重更高
     if (t < attract.until) {
       const dx = attract.x - k.x, dz = attract.z - k.z;
-      const dist = Math.hypot(dx, dz);
-      if (dist > 1.2) {
-        const want = Math.atan2(dx, dz);
-        let dd = want - k.heading;
-        while (dd >  Math.PI) dd -= Math.PI * 2;
-        while (dd < -Math.PI) dd += Math.PI * 2;
-        steer += THREE.MathUtils.clamp(dd * 2.2, -2.2, 2.2);
-        feeding = true;
-      } else { k.speed = Math.max(.35, k.speed - dt * 1.5); } // 到点后悠着转
+      if (Math.hypot(dx, dz) > 1.0) { wantX = dx * 3; wantZ = dz * 3; feeding = true; }
     }
 
-    // 边界软约束：靠近池缘时往回拐
-    const r = Math.hypot(k.x, k.z);
-    if (r > POOL_R * .72) {
-      const back = Math.atan2(-k.x, -k.z);
-      let dd = back - k.heading;
-      while (dd >  Math.PI) dd -= Math.PI * 2;
-      while (dd < -Math.PI) dd += Math.PI * 2;
-      steer += dd * THREE.MathUtils.smoothstep(r, POOL_R * .72, POOL_R) * 3.2;
-    }
-
-    // 同伴分离
+    // 避让同伴：叠加一个排斥向量
     for (const o of kois) {
       if (o === k || o.jump) continue;
       const dx = k.x - o.x, dz = k.z - o.z;
       const d2 = dx * dx + dz * dz;
-      if (d2 < 4.4 && d2 > .0001) {
-        const away = Math.atan2(dx, dz);
-        let dd = away - k.heading;
-        while (dd >  Math.PI) dd -= Math.PI * 2;
-        while (dd < -Math.PI) dd += Math.PI * 2;
-        steer += dd * (1.6 / (1 + d2));
+      if (d2 < 6 && d2 > .0001) {
+        const w = 3.2 / (0.6 + d2);
+        wantX += dx * w; wantZ += dz * w;
       }
     }
 
-    const turn = THREE.MathUtils.clamp(steer, -1.6, 1.6) * dt;
-    k.heading += turn;
-    k.bank += ((-turn * 14) - k.bank) * Math.min(1, dt * 3);
+    // 池缘回避：接近边界时强烈拉回圆心
+    const r = Math.hypot(k.x, k.z);
+    if (r > POOL_R * .7) {
+      const s = THREE.MathUtils.smoothstep(r, POOL_R * .7, POOL_R * 1.02) * 6;
+      wantX += (-k.x / r) * s; wantZ += (-k.z / r) * s;
+      urgency = Math.max(urgency, THREE.MathUtils.smoothstep(r, POOL_R * .7, POOL_R));
+    }
 
-    // —— 速度 ——
-    const target = feeding ? k.baseSpeed * 1.9 : k.baseSpeed;
-    k.speed += (target - k.speed) * Math.min(1, dt * .8);
+    // —— 2. 惯性转向：朝 desired 逼近，但受角速度/角加速度限制 ——
+    const desired = Math.atan2(wantX, wantZ);
+    const diff = wrapAngle(desired - k.heading);
+    urgency = Math.max(urgency, Math.min(1, Math.abs(diff) / Math.PI));
+    // 目标角速度正比于角度差，但封顶；再用角加速度平滑逼近（消除抖动/急停）
+    const wantAngVel = THREE.MathUtils.clamp(diff * 2.2, -MAX_TURN, MAX_TURN);
+    k.angVel += THREE.MathUtils.clamp(wantAngVel - k.angVel, -TURN_ACC * dt, TURN_ACC * dt);
+    k.heading += k.angVel * dt;
 
+    // —— 3. 速度：转急了自然减速（真实鱼过弯放慢），聚食时加速 ——
+    let targetSpeed = k.baseSpeed * (1 - urgency * .55);
+    if (feeding) targetSpeed = k.baseSpeed * 2.0;
+    k.speed += THREE.MathUtils.clamp(targetSpeed - k.speed, -KOI_ACCEL * dt, KOI_ACCEL * dt);
+
+    // —— 4. 只沿鼻尖方向前进（永远不侧移/倒退）——
     k.x += Math.sin(k.heading) * k.speed * dt;
     k.z += Math.cos(k.heading) * k.speed * dt;
 
-    // 上下起伏
-    const y = k.depth + Math.sin(t * .7 + k.wanderPh) * .1;
+    // —— 5. 姿态：转弯侧倾(roll) + 起伏俯仰(pitch)，平滑跟随 ——
+    const targetRoll = THREE.MathUtils.clamp(-k.angVel * .5, -.5, .5);
+    k.roll += (targetRoll - k.roll) * Math.min(1, dt * 2.5);
+    const yWave = Math.sin(t * .5 + k.wanderPh) * .12;
+    const y = k.depth + yWave;
+    const targetPitch = -Math.cos(t * .5 + k.wanderPh) * .12;   // 起伏对应的抬头/低头
+    k.pitch += (targetPitch - k.pitch) * Math.min(1, dt * 2);
 
     k.root.position.set(k.x, y, k.z);
-    k.root.rotation.set(0, k.heading, k.bank * .04);
-    k.action.timeScale = .65 + k.speed * .55;
+    k.root.rotation.set(k.pitch, k.heading, k.roll);
+
+    // —— 6. 尾鳍摆动频率随速度（游得快尾巴摆得快）——
+    k.action.timeScale = .5 + k.speed * .9;
     k.mixer.update(dt);
 
-    // 游太快时偶尔留下小水纹
-    if (feeding && Math.random() < dt * 1.2 && y > -0.75) addRipple(k.x, k.z, .25);
+    if (k.arrow) { k.arrow.position.set(k.x, .6, k.z); k.arrow.setDirection(new THREE.Vector3(Math.sin(k.heading), 0, Math.cos(k.heading))); }
+
+    if (feeding && k.speed > 1 && Math.random() < dt * 1.0) addRipple(k.x, k.z, .2);
   }
 }
 
@@ -517,7 +589,7 @@ function updateJump (k, dt, t) {
   }
   const pitch = u < .14 ? .5 : -Math.cos((u - .14) / .86 * Math.PI) * 1.1;
   k.root.position.set(k.x, y, k.z);
-  k.root.rotation.set(-pitch, J.h0, 0);
+  k.root.rotation.set(pitch, J.h0, 0);   // 鼻头+Z：正俯角=低头（入水/蓄力），负=昂头跃升
   // 出水与入水的水花
   if (!J.splashed && u > .2) { J.splashed = true; makeSplash(k.x, k.z); addRipple(k.x, k.z, 1.4); playSplash(); }
   if (u > .9 && !J.landed) { J.landed = true; makeSplash(k.x, k.z); addRipple(k.x, k.z, 1.8); playSplash();
@@ -713,7 +785,7 @@ function pondTouch (cx, cy) {
   if (raycaster.ray.intersectPlane(waterPlane, hit)) {
     const r = Math.hypot(hit.x, hit.z);
     if (r < POOL_R * 1.4) {
-      addRipple(hit.x, hit.z, 1);
+      addRipple(hit.x, hit.z, 1.5);
       attract.x = hit.x; attract.z = hit.z;
       attract.until = clock.elapsedTime + 6;
       if (audio && audio.master.gain.value > .01) playSplash();
@@ -807,20 +879,27 @@ function animate () {
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
     petals.list.forEach((p, i) => {
       if (p.onWater < 0) {
-        p.y -= p.vy * dt;
-        p.x += Math.sin(t * .8 + p.ph) * dt * .6;
-        p.z += Math.cos(t * .6 + p.ph) * dt * .4;
-        p.spin += dt * 1.4;
-        if (p.y <= .12) { p.onWater = t; addRipple(p.x, p.z, .3); }
-        e.set(p.spin, p.ph, p.spin * .6);
+        // 落叶式飘落：横摆（钟摆），摆到端点时下落慢、中间快，同时缓慢翻转
+        const sway = Math.sin(t * p.swayF * 6.28 + p.ph);
+        p.y -= p.vy * (0.72 + 0.55 * Math.abs(Math.cos(t * p.swayF * 6.28 + p.ph))) * dt * 3.2;
+        p.x += sway * p.swayA * dt;
+        p.z += Math.sin(t * .3 + p.ph) * .25 * dt;
+        if (p.y <= .1) { p.onWater = t; addRipple(p.x, p.z, .28); }
+        // 姿态跟随摆动：像纸片一样倾斜入摆，缓慢自转
+        e.set(sway * .7 + Math.PI * .5 * Math.sin(t * p.tumble * .5 + p.ph),
+              p.ph + t * p.tumble * .3,
+              sway * .5);
       } else {
-        p.y = .12;
-        p.x += dt * .07; p.z += dt * .04;
-        e.set(-Math.PI / 2, 0, p.ph + Math.sin(t * .4 + p.ph) * .2);
-        if (t - p.onWater > 14) { p.x = (Math.random() - .5) * 34; p.z = (Math.random() - .5) * 34; p.y = 8 + Math.random() * 8; p.onWater = -1; }
+        // 浮在水面：平躺，随水微旋微漂，最后沉没重生
+        p.y = .1;
+        p.x += dt * .06; p.z += dt * .035;
+        const soak = t - p.onWater;
+        e.set(-Math.PI / 2, p.ph + Math.sin(t * .3 + p.ph) * .15, 0);
+        if (soak > 16) { p.x = (Math.random() - .5) * 30; p.z = (Math.random() - .5) * 30; p.y = 7 + Math.random() * 7; p.onWater = -1; }
       }
       q.setFromEuler(e);
-      m.compose(new THREE.Vector3(p.x, p.y, p.z), q, new THREE.Vector3(1, 1, 1));
+      const soak2 = p.onWater > 0 ? Math.max(0, 1 - (t - p.onWater - 13) / 3) : 1; // 沉没前缩小淡出
+      m.compose(new THREE.Vector3(p.x, p.y, p.z), q, new THREE.Vector3(soak2, soak2, soak2));
       petals.mesh.setMatrixAt(i, m);
     });
     petals.mesh.instanceMatrix.needsUpdate = true;

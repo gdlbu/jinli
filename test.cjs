@@ -35,7 +35,7 @@ const server = http.createServer((req, res) => {
   page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
   page.on('requestfailed', r => errors.push('REQFAIL: ' + r.url() + ' ' + (r.failure()?.errorText||'')));
 
-  await page.goto(url + '?sky=day', { waitUntil: 'load', timeout: 30000 });
+  await page.goto(url, { waitUntil: 'load', timeout: 30000 });
 
   // 等加载遮罩消失（body.ready）
   let ready = false;
