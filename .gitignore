@@ -1,0 +1,7 @@
+node_modules/
+*.log
+.DS_Store
+._*
+/shot-*.png
+/sky-*.png
+/card.png

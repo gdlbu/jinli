@@ -1,0 +1,12 @@
+{
+  "name": "锦鲤 jin.li",
+  "short_name": "锦鲤",
+  "description": "一方数字锦鲤池，轻触水面锦鲤游来，求一签好运。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#155a5c",
+  "theme_color": "#0c3a44",
+  "icons": [
+    { "src": "/assets/seal.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
