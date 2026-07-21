@@ -113,7 +113,7 @@ const FORTUNES = [
 
 // ------------------------------------------------ 白天氛围（固定）
 const DAY = { exposure:.82, bgInt:1.0, hemi:.42, dir:1.28, dirColor:0xfff4e0, rim:.46,
-              waterColor:0x1e9066, sunColor:0xffffff, bloom:.22, fog:0x0f3d2c, fogD:0.0026 };
+              waterColor:0x2cb877, sunColor:0xffffff, bloom:.22, fog:0x12472f, fogD:0.0026 };
 
 // ------------------------------------------------ 加载
 const loadingDiv = document.getElementById('loading');
@@ -230,7 +230,7 @@ scene.add(sand);
 // ---------------- 水面 ----------------
 const waterNormals = new THREE.TextureLoader(manager).load('/textures/waternormals.jpg', t => {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(14, 14);
+  t.repeat.set(10, 10);
 });
 water = new Water(new THREE.PlaneGeometry(400, 400), {
   textureWidth: isMobile ? 256 : 512,
@@ -239,13 +239,13 @@ water = new Water(new THREE.PlaneGeometry(400, 400), {
   sunDirection: sunPos.clone().normalize(),
   sunColor: DAY.sunColor,
   waterColor: DAY.waterColor,
-  distortionScale: 2.6,
+  distortionScale: 1.3,
   fog: false
 });
 water.rotation.x = -Math.PI / 2;
 water.position.y = 0;
 water.material.transparent = true;
-water.material.uniforms.alpha.value = 0.58;   // 更通透，锦鲤清晰可见
+water.material.uniforms.alpha.value = 0.34;   // 清澈见底，鱼完全可见
 scene.add(water);
 
 // ---------------- 涟漪（自定义 shader 平面） ----------------
@@ -311,41 +311,127 @@ function addRipple (x, z, strength = 1) {
 }
 
 // ---------------- 锦鲤鱼群 ----------------
-// 花色：基于原贴图逐像素重上色——白底不动、只改花斑颜色，
-// 保留真实斑纹形状（红白 / 金黄 / 墨斑 / 绯橙 / 白无地）
-const VARIANTS = ['kohaku', 'yamabuki', 'sumi', 'orange', 'platinum', 'kohaku'];
+// 六个流行品种，花纹在 UV 空间逐像素绘制（贴图 2048² 布局：两条对角鱼身条带，
+// 头在条带下端 y>1250 处；眼球在右下角、口腔件在顶部中央——这两处不上色）：
+//   红白 Kohaku   —— 原版红斑
+//   大正三色 Sanke —— 红斑 + 种子噪声生成的墨斑（白底为主，避开头部）
+//   昭和三色 Showa —— 更大块的缠身墨斑，头部也有墨
+//   丹顶 Tancho    —— 全身纯白，仅头顶一枚圆红斑
+//   黄金 Yamabuki  —— 通体金黄的金属系
+//   白金 Platinum  —— 通体银白的金属系
+// 体型也按品种差异化：sx=体宽 sy=体高 sz=体长
+const VARIANTS = [
+  { id: 'kohaku',   body: { sx: 1.00, sy: 1.00, sz: 1.00 } },
+  { id: 'sanke',    body: { sx: 1.06, sy: 1.05, sz: 1.08 }, sumi: { seed: 7,  freq: 6.8, thr: .58, head: false } },
+  { id: 'showa',    body: { sx: 1.17, sy: 1.10, sz: 0.99 }, sumi: { seed: 23, freq: 4.6, thr: .52, head: true  } },
+  { id: 'tancho',   body: { sx: 0.93, sy: 0.96, sz: 0.97 } },
+  { id: 'yamabuki', body: { sx: 0.97, sy: 0.95, sz: 1.14 } },
+  { id: 'platinum', body: { sx: 0.88, sy: 0.94, sz: 1.06 } },
+];
+
+// —— 种子化二维值噪声（斑块生成用，跨会话稳定）——
+function hash2 (ix, iy, seed) {
+  let h = (ix * 374761393 + iy * 668265263 + seed * 974634) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+}
+function vnoise (x, y, seed) {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const a = hash2(ix, iy, seed), b = hash2(ix + 1, iy, seed);
+  const c2 = hash2(ix, iy + 1, seed), d = hash2(ix + 1, iy + 1, seed);
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  return a + (b - a) * ux + (c2 - a) * uy + (a - b - c2 + d) * ux * uy;
+}
+function fbm (x, y, seed) {
+  return vnoise(x, y, seed) * .62 + vnoise(x * 2.3 + 7.1, y * 2.3 + 3.7, seed + 13) * .38;
+}
+const sstep = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+
 const variantMapCache = {};
-function variantTexture (srcMap, mode) {
-  if (mode === 'kohaku' || !srcMap || !srcMap.image) return srcMap;
-  const key = mode + '_' + srcMap.uuid;
+function variantTexture (srcMap, v) {
+  if (v.id === 'kohaku' || !srcMap || !srcMap.image) return srcMap;
+  const key = v.id + '_' + srcMap.uuid;
   if (variantMapCache[key]) return variantMapCache[key];
   const img = srcMap.image;
   const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
   const g = c.getContext('2d'); g.drawImage(img, 0, 0);
   const id = g.getImageData(0, 0, c.width, c.height), px = id.data;
+  const w = c.width, sc = w / 2048;
+  const inEye  = (x, y) => x > 1740 * sc && y > 1740 * sc;          // 眼球件
+  const inOral = (x, y) => x > 1180 * sc && x < 1630 * sc && y < 270 * sc; // 口腔件
+
+  // 丹顶：先扫描两条身体条带头部红斑的质心，作为圆斑落点
+  let heads = null;
+  if (v.id === 'tancho') {
+    const acc = [{ x: 0, y: 0, n: 0 }, { x: 0, y: 0, n: 0 }];
+    for (let y = Math.floor(1250 * sc); y < c.height; y += 2) {
+      for (let x = 0; x < w; x += 2) {
+        const i = (y * w + x) * 4;
+        const r = px[i], gr = px[i + 1], b = px[i + 2];
+        if (r > 130 && r - gr > 45 && r - b > 45 && !inEye(x, y)) {
+          const a = acc[x < 1150 * sc ? 0 : 1];
+          a.x += x; a.y += y; a.n++;
+        }
+      }
+    }
+    heads = acc.map((a, i) => a.n > 40
+      ? { x: a.x / a.n, y: a.y / a.n }
+      : (i === 0 ? { x: 950 * sc, y: 1470 * sc } : { x: 1420 * sc, y: 1600 * sc }));
+  }
+
+  const R = 92 * sc, EDGE = 20 * sc;      // 丹顶圆斑半径与柔边
   for (let i = 0; i < px.length; i += 4) {
-    const r = px[i] / 255, gc = px[i + 1] / 255, b = px[i + 2] / 255;
-    const mx = Math.max(r, gc, b), mn = Math.min(r, gc, b), l = (mx + mn) / 2;
-    const s = mx === mn ? 0 : (mx - mn) / (1 - Math.abs(2 * l - 1));
-    if (s < 0.22) continue;                            // 白底/灰鳍不动，只改花斑
-    if (mode === 'yamabuki') {                         // 黄金：斑块转金黄，保留明暗
-      px[i] = Math.round(252 * mx); px[i + 1] = Math.round(206 * mx); px[i + 2] = Math.round(66 * mx);
-    } else if (mode === 'sumi') {                      // 墨斑：斑块转炭黑
-      const v = Math.round(255 * (0.09 + l * 0.16));
-      px[i] = v; px[i + 1] = v; px[i + 2] = Math.min(255, v + 6);
-    } else if (mode === 'orange') {                    // 绯橙：加深偏橙
-      px[i] = Math.min(255, Math.round(px[i] * 1.06));
-      px[i + 1] = Math.round(px[i + 1] * 0.70);
-      px[i + 2] = Math.round(px[i + 2] * 0.42);
-    } else if (mode === 'platinum') {                  // 白无地：斑块褪为银白
-      const v = Math.round(230 + l * 22);
-      px[i] = v; px[i + 1] = v; px[i + 2] = Math.min(255, v + 4);
+    const p = i >> 2, x = p % w, y = (p / w) | 0;
+    if (inEye(x, y) || inOral(x, y)) continue;
+    const r = px[i] / 255, gr = px[i + 1] / 255, b = px[i + 2] / 255;
+    const l = (Math.max(r, gr, b) + Math.min(r, gr, b)) / 2;
+    const redAmt = sstep(.06, .22, r - Math.max(gr, b));   // 红斑强度 0..1
+
+    if (v.id === 'yamabuki') {            // 通体金黄（山吹黄金）
+      const lm = .35 + l * .75;
+      px[i]     = Math.min(255, Math.round(258 * lm));
+      px[i + 1] = Math.min(255, Math.round(196 * lm));
+      px[i + 2] = Math.round(52 * lm * lm);
+    } else if (v.id === 'platinum') {     // 通体银白（白金）
+      if (redAmt > 0) {
+        const t = .82 + l * .18;
+        px[i]     = Math.round(px[i]     * (1 - redAmt) + 244 * t * redAmt);
+        px[i + 1] = Math.round(px[i + 1] * (1 - redAmt) + 243 * t * redAmt);
+        px[i + 2] = Math.round(px[i + 2] * (1 - redAmt) + 240 * t * redAmt);
+      }
+    } else if (v.id === 'tancho') {       // 白身 + 头顶圆红斑
+      const h = x < 1150 * sc ? heads[0] : heads[1];
+      const d = Math.hypot(x - h.x, y - h.y);
+      const circle = 1 - sstep(R - EDGE, R + EDGE, d);
+      if (circle > 0) {
+        const shade = .8 + l * .45;
+        px[i]     = Math.round(px[i]     * (1 - circle) + Math.min(255, 212 * shade) * circle);
+        px[i + 1] = Math.round(px[i + 1] * (1 - circle) + 34 * shade * circle);
+        px[i + 2] = Math.round(px[i + 2] * (1 - circle) + 28 * shade * circle);
+      } else if (redAmt > 0) {            // 其余红斑全部褪白
+        const t = .84 + l * .16;
+        px[i]     = Math.round(px[i]     * (1 - redAmt) + 246 * t * redAmt);
+        px[i + 1] = Math.round(px[i + 1] * (1 - redAmt) + 243 * t * redAmt);
+        px[i + 2] = Math.round(px[i + 2] * (1 - redAmt) + 238 * t * redAmt);
+      }
+    } else if (v.sumi) {                  // 三色：噪声墨斑
+      if (!v.sumi.head && y > 1300 * sc) continue;        // 大正：头部留白
+      if (v.id === 'sanke' && redAmt > .45) continue;     // 大正：墨不压红
+      const m = fbm(x / w * v.sumi.freq, y / w * v.sumi.freq, v.sumi.seed);
+      const ink = sstep(v.sumi.thr, v.sumi.thr + .075, m);
+      if (ink > 0) {
+        const v0 = .06 + l * .13;         // 保留鳞片明暗的炭墨
+        px[i]     = Math.round(px[i]     * (1 - ink) + 255 * v0 * ink);
+        px[i + 1] = Math.round(px[i + 1] * (1 - ink) + 255 * (v0 + .012) * ink);
+        px[i + 2] = Math.round(px[i + 2] * (1 - ink) + 255 * (v0 + .035) * ink);
+      }
     }
   }
   g.putImageData(id, 0, 0);
   const tex = new THREE.CanvasTexture(c);
   tex.flipY = srcMap.flipY; tex.colorSpace = srcMap.colorSpace;
   tex.wrapS = srcMap.wrapS; tex.wrapT = srcMap.wrapT;
+  tex.anisotropy = srcMap.anisotropy;
   variantMapCache[key] = tex;
   return tex;
 }
@@ -374,8 +460,8 @@ new GLTFLoader(manager).load('/models/koi.glb', gltf => {
         if (n.material.emissive) { n.material.emissive.setHex(0xffe8d0); n.material.emissiveIntensity = .04; }
       }
     });
-    const scale = 8.5 + Math.random() * 2.6;
-    model.scale.setScalar(scale);
+    const scale = 8.5 + Math.random() * 1.8;
+    model.scale.set(scale * v.body.sx, scale * v.body.sy, scale * v.body.sz);
     root.add(model);
 
     const mixer = new THREE.AnimationMixer(model);
@@ -387,7 +473,7 @@ new GLTFLoader(manager).load('/models/koi.glb', gltf => {
     const a = (i / KOI_N) * Math.PI * 2;
     const cruise = .55 + Math.random() * .35;
     const koi = {
-      root, mixer, action, scale,
+      root, mixer, action, scale: scale * Math.max(v.body.sx, v.body.sz),
       x: Math.cos(a) * 6, z: Math.sin(a) * 6,
       heading: Math.random() * Math.PI * 2,
       speed: cruise, baseSpeed: cruise,
@@ -696,40 +782,44 @@ document.getElementById('saveBtn').addEventListener('click', () => {
 fmask.addEventListener('click', e => { if (e.target === fmask) fmask.classList.remove('show'); });
 
 // ---------------- 声音（程序生成，无外部资源） ----------------
+// 吉祥氛围乐：C 宫五声音阶（宫商角徵羽）古筝式轻拨 + 轻回声，无水噪
 let audio = null;
+const PENTA = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
+function pluck (freq, t, vol = .1, dur = 2.4) {
+  const { ctx, master } = audio;
+  const o  = ctx.createOscillator(), g  = ctx.createGain();
+  const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+  o.type = 'sine';  o.frequency.value = freq;
+  o2.type = 'sine'; o2.frequency.value = freq * 2; g2.gain.value = .26;  // 八度泛音→拨弦质感
+  g.gain.setValueAtTime(.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + .014);
+  g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g); o2.connect(g2); g2.connect(g); g.connect(master);
+  o.start(t); o.stop(t + dur + .1); o2.start(t); o2.stop(t + dur + .1);
+}
 function initAudio () {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
-  // 水底噪声
-  const len = ctx.sampleRate * 3;
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const ch = buf.getChannelData(0);
-  let last = 0;
-  for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; last = (last + .015 * w) / 1.015; ch[i] = last * 4.2; }
-  const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
-  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
-  const lfoG = ctx.createGain(); lfoG.gain.value = .35;
-  const noiseG = ctx.createGain(); noiseG.gain.value = .5;
-  const lfo = ctx.createOscillator(); lfo.frequency.value = .11;
-  lfo.connect(lfoG.gain);
-  src.connect(lp); lp.connect(lfoG); lfoG.connect(noiseG); noiseG.connect(master);
-  src.start(); lfo.start();
+  const master = ctx.createGain(); master.gain.value = 0;
+  master.connect(ctx.destination);
+  // 轻回声（似远寺余韵）
+  const delay = ctx.createDelay(); delay.delayTime.value = .31;
+  const fb = ctx.createGain(); fb.gain.value = .24;
+  const wet = ctx.createGain(); wet.gain.value = .16;
+  master.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(wet); wet.connect(ctx.destination);
   audio = { ctx, master };
-  // 随机水滴
-  (function drip () {
+  // 生成式旋律：单音漫弹，偶发跟一个四/五度和音
+  (function melody () {
     if (!audio) return;
-    if (audio.master.gain.value > 0.01) {
-      const t = ctx.currentTime;
-      const o = ctx.createOscillator(), og = ctx.createGain();
-      o.frequency.setValueAtTime(620 + Math.random() * 500, t);
-      o.frequency.exponentialRampToValueAtTime(180, t + .16);
-      og.gain.setValueAtTime(.0001, t);
-      og.gain.exponentialRampToValueAtTime(.11, t + .012);
-      og.gain.exponentialRampToValueAtTime(.0001, t + .3);
-      o.connect(og); og.connect(master);
-      o.start(t); o.stop(t + .32);
+    if (audio.master.gain.value > .01) {
+      const t = ctx.currentTime + .05;
+      const i = Math.floor(Math.random() * PENTA.length);
+      pluck(PENTA[i], t, .085 + Math.random() * .05);
+      if (Math.random() < .38) {
+        const j = Math.min(PENTA.length - 1, i + (Math.random() < .5 ? 3 : 4));
+        pluck(PENTA[j], t + .14 + Math.random() * .22, .055);
+      }
     }
-    setTimeout(drip, 1800 + Math.random() * 5200);
+    setTimeout(melody, 2400 + Math.random() * 4200);
   })();
 }
 function playChime () {
@@ -748,12 +838,12 @@ function playChime () {
 function playSplash () {
   if (!audio || audio.master.gain.value < .01) return;
   const { ctx, master } = audio, t = ctx.currentTime;
-  const len = ctx.sampleRate * .5, buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const len = ctx.sampleRate * .3, buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const ch = buf.getChannelData(0);
   for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2);
   const src = ctx.createBufferSource(); src.buffer = buf;
   const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = .8;
-  const g = ctx.createGain(); g.gain.value = .5;
+  const g = ctx.createGain(); g.gain.value = .26;
   src.connect(bp); bp.connect(g); g.connect(master);
   src.start(t);
 }
