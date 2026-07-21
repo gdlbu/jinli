@@ -26,7 +26,6 @@ const server = http.createServer((req, res) => {
   console.log('serving', url);
 
   const browser = await chromium.launch({
-    executablePath: process.env.HOME + '/.cache/ms-playwright/chromium-1208/chrome-linux/chrome',
     args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']
   });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
@@ -39,10 +38,10 @@ const server = http.createServer((req, res) => {
 
   // 等加载遮罩消失（body.ready）
   let ready = false;
-  try { await page.waitForSelector('body.ready', { timeout: 25000 }); ready = true; } catch(e){}
+  try { await page.waitForSelector('body.ready', { timeout: 60000 }); ready = true; } catch(e){}
 
   await page.waitForTimeout(2500);
-  await page.screenshot({ path: 'shot-load.png' });
+  await page.screenshot({ path: 'shot-load.png', timeout: 120000 });
 
   // 判断 canvas 是否真的画了东西（非纯色）
   const canvasInfo = await page.evaluate(() => {
@@ -53,7 +52,7 @@ const server = http.createServer((req, res) => {
   // 点一下水面聚鱼
   await page.mouse.click(720, 520);
   await page.waitForTimeout(1500);
-  await page.screenshot({ path: 'shot-ripple.png' });
+  await page.screenshot({ path: 'shot-ripple.png', timeout: 120000 });
 
   // 求好运
   await page.click('#seekBtn');
@@ -61,7 +60,7 @@ const server = http.createServer((req, res) => {
   const cardShown = await page.evaluate(() => document.getElementById('fmask').classList.contains('show'));
   const dbg = await page.evaluate(() => ({ seek: window.__seekCalled, block: window.__seekBlock,
     kois: (window.kois || []).length, landed: window.__landed, show: window.__showFortune, ferr: window.__fortuneErr }));
-  await page.screenshot({ path: 'shot-fortune.png' });
+  await page.screenshot({ path: 'shot-fortune.png', timeout: 120000 });
 
   console.log('=== ready:', ready, '| canvas:', JSON.stringify(canvasInfo), '| card:', cardShown, '| dbg:', JSON.stringify(dbg));
   console.log('=== ERRORS ('+errors.length+') ==='); errors.forEach(e=>console.log(e));

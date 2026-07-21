@@ -48,6 +48,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600;700&family=Ma+Shan+Zheng&display=swap" rel="stylesheet" />
 
+<!-- 大资源与 JS 模块并行下载，缩短首屏加载 -->
+<link rel="preload" href="/models/koi.glb" as="fetch" crossorigin />
+<link rel="preload" href="/textures/skybox.hdr" as="fetch" crossorigin />
+<link rel="preload" href="/textures/waternormals.jpg" as="image" crossorigin="anonymous" />
+<link rel="modulepreload" href="/three/three.module.js" />
+
 <style>
   :root{
     /* —— 昼间池水 —— */
