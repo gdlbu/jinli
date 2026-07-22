@@ -113,7 +113,7 @@ const FORTUNES = [
 
 // ------------------------------------------------ 白天氛围（固定）
 const DAY = { exposure:.82, bgInt:1.0, hemi:.42, dir:1.28, dirColor:0xfff4e0, rim:.46,
-              waterColor:0x2cb877, sunColor:0xffffff, bloom:.22, fog:0x12472f, fogD:0.0026 };
+              waterColor:0x1fae5e, sunColor:0xffffff, bloom:.22, fog:0x14603c, fogD:0.0026 };
 
 // ------------------------------------------------ 加载
 const loadingDiv = document.getElementById('loading');
@@ -188,20 +188,20 @@ const rimLight = new THREE.DirectionalLight(0xbfdfff, DAY.rim);
 rimLight.position.set(-10, 15, -15);
 scene.add(rimLight);
 
-// ---------------- 池底：沙 + 卵石 + 焦散光斑 ----------------
+// ---------------- 池底：深绿池底 + 焦散光斑（去黄沙，成就翠绿水色） ----------------
 function makeCausticsTexture () {
   const s = 512, c = document.createElement('canvas'); c.width = c.height = s;
   const g = c.getContext('2d');
-  g.fillStyle = '#7f7460'; g.fillRect(0, 0, s, s);
-  // 细沙噪点
+  g.fillStyle = '#155840'; g.fillRect(0, 0, s, s);
+  // 深浅不一的绿底细纹
   for (let i = 0; i < 9000; i++) {
-    g.fillStyle = `rgba(${190 + Math.random() * 50 | 0},${175 + Math.random() * 45 | 0},${140 + Math.random() * 40 | 0},${.05 + Math.random() * .1})`;
+    g.fillStyle = `rgba(${18 + Math.random() * 30 | 0},${70 + Math.random() * 55 | 0},${52 + Math.random() * 40 | 0},${.05 + Math.random() * .1})`;
     g.fillRect(Math.random() * s, Math.random() * s, 1.6, 1.6);
   }
   // 焦散网纹
   g.globalCompositeOperation = 'lighter';
   for (let i = 0; i < 46; i++) {
-    g.strokeStyle = `rgba(235,255,246,${.05 + Math.random() * .07})`;
+    g.strokeStyle = `rgba(190,255,224,${.04 + Math.random() * .06})`;
     g.lineWidth = 1.5 + Math.random() * 2.5;
     g.filter = `blur(${2 + Math.random() * 3}px)`;
     g.beginPath();
@@ -220,7 +220,7 @@ const sandTex = makeCausticsTexture();
 sandTex.repeat.set(7, 7);
 const sand = new THREE.Mesh(
   new THREE.CircleGeometry(90, 48),
-  new THREE.MeshStandardMaterial({ map: sandTex, color: 0x9c8c66, roughness: 1 })
+  new THREE.MeshStandardMaterial({ map: sandTex, color: 0xffffff, roughness: 1 })
 );
 sand.rotation.x = -Math.PI / 2;
 sand.position.y = SAND_Y;
@@ -268,35 +268,33 @@ const rippleMat = new THREE.ShaderMaterial({
     uniform float uTime;
     uniform vec4 uRipples[${MAX_RIPPLES}];
     varying vec2 vPos;
-    // 物理感涟漪：主波包约1.25m/s扩散，前方伴随快而细的毛细波，后方拖慢速尾波；
-    // 2D 表面波振幅按 1/sqrt(r) 摊薄、随时间指数衰减；起振有 0.1s 的成长期；
-    // 波峰提亮（反光）波谷微暗，整体随年龄平滑消隐
+    // 真实感涟漪：单一主波群 + 色散（波长随传播变长）+ 角向不均匀 +
+    // 尖峰缓谷波形；振幅按 1/sqrt(r) 摊薄、随时间指数衰减
     void main(){
       float w = 0.0;
       for (int i = 0; i < ${MAX_RIPPLES}; i++){
         vec4 rp = uRipples[i];
         float age = uTime - rp.z;
-        if (age < 0.0 || age > 6.0) continue;
-        float d = distance(vPos, rp.xy);
-        float grow = smoothstep(0.0, 0.12, age);            // 起振成长
-        float fade = exp(-age * 0.55) * (1.0 - smoothstep(4.5, 6.0, age));
-        float spread = rp.w * grow * fade / sqrt(1.0 + d * 1.1);
-        // 主波包（重力波）
-        float x1 = d - (0.18 + age * 1.25);
-        w += sin(x1 * 9.0) * exp(-x1 * x1 * 2.4) * spread;
-        // 前导毛细波：更快、更细、更弱
-        float x2 = d - (0.22 + age * 1.9);
-        w += sin(x2 * 22.0) * exp(-x2 * x2 * 9.0) * spread * 0.35 * exp(-age * 1.2);
-        // 尾随慢波：稍慢、更宽、随年龄相对变明显
-        float x3 = d - (0.10 + age * 0.85);
-        w += sin(x3 * 6.0) * exp(-x3 * x3 * 1.4) * spread * 0.45;
+        if (age < 0.0 || age > 6.5) continue;
+        vec2 rel = vPos - rp.xy;
+        float d = length(rel);
+        float grow = smoothstep(0.0, 0.1, age);
+        float fade = exp(-age * 0.7) * (1.0 - smoothstep(5.0, 6.5, age));
+        float lambda = 0.5 + age * 0.55;              // 色散：外圈波长渐大
+        float x = d - (0.18 + age * 1.15);
+        float env = exp(-x * x / (0.5 * lambda * lambda));
+        float ph = 6.2831 * x / lambda;
+        float wave = sin(ph) + 0.33 * sin(2.0 * ph + 1.2);   // 尖峰缓谷
+        float ang = atan(rel.y, rel.x);
+        float irr = 0.82 + 0.12 * sin(ang * 3.0 + rp.z * 13.0)
+                         + 0.06 * sin(ang * 7.0 - rp.z * 5.0); // 圆环轻微不均匀
+        w += wave * env * irr * rp.w * grow * fade / sqrt(1.0 + d * 1.3);
       }
-      float s = clamp(w * 2.6, -1.0, 1.0);
-      // 峰：暖白反光；谷：深水色；不对称——反光比阴影更明显（真实水面观感）
-      vec3 bright = vec3(0.86, 0.98, 0.94);
-      vec3 dark   = vec3(0.02, 0.10, 0.08);
+      float s = clamp(w * 2.4, -1.0, 1.0);
+      vec3 bright = vec3(0.88, 1.0, 0.96);
+      vec3 dark   = vec3(0.03, 0.14, 0.10);
       vec3 col = s > 0.0 ? mix(vec3(0.5), bright, s) : mix(vec3(0.5), dark, -s);
-      float a = s > 0.0 ? s * 0.5 : -s * 0.28;
+      float a = s > 0.0 ? s * 0.4 : -s * 0.2;
       gl_FragColor = vec4(col, a);
     }`
 });
@@ -384,39 +382,47 @@ function variantTexture (srcMap, v) {
     const p = i >> 2, x = p % w, y = (p / w) | 0;
     if (inEye(x, y) || inOral(x, y)) continue;
     const r = px[i] / 255, gr = px[i + 1] / 255, b = px[i + 2] / 255;
-    const l = (Math.max(r, gr, b) + Math.min(r, gr, b)) / 2;
-    const redAmt = sstep(.06, .22, r - Math.max(gr, b));   // 红斑强度 0..1
+    const mx = Math.max(r, gr, b);
+    const l = (mx + Math.min(r, gr, b)) / 2;
+    const redA  = sstep(.05, .20, r - Math.max(gr, b));    // 红斑强度
+    const blueA = sstep(.035, .12, b - r);                 // 蓝灰杂斑强度
+    const patA  = Math.max(redA, blueA);
+    // “无花纹底色亮度”：花纹处回填白底亮度（≈.87），保留鳞片明暗起伏
+    const base = mx * (1 - patA) + (.87 + (mx - .87) * .25) * patA;
 
-    if (v.id === 'yamabuki') {            // 通体金黄（山吹黄金）
-      const lm = .35 + l * .75;
-      px[i]     = Math.min(255, Math.round(258 * lm));
-      px[i + 1] = Math.min(255, Math.round(196 * lm));
-      px[i + 2] = Math.round(52 * lm * lm);
-    } else if (v.id === 'platinum') {     // 通体银白（白金）
-      if (redAmt > 0) {
-        const t = .82 + l * .18;
-        px[i]     = Math.round(px[i]     * (1 - redAmt) + 244 * t * redAmt);
-        px[i + 1] = Math.round(px[i + 1] * (1 - redAmt) + 243 * t * redAmt);
-        px[i + 2] = Math.round(px[i + 2] * (1 - redAmt) + 240 * t * redAmt);
-      }
+    if (v.id === 'yamabuki') {            // 通体金黄：花纹亮度全部抹平后镀金
+      const t2 = .26 + base * .74;
+      px[i]     = Math.min(255, Math.round(268 * t2));
+      px[i + 1] = Math.min(255, Math.round(186 * t2));
+      px[i + 2] = Math.round(34 * t2 * t2);
+    } else if (v.id === 'platinum') {     // 通体银白：同样抹平花纹
+      const t2 = Math.min(1, .16 + base * .92);
+      px[i] = px[i + 1] = Math.round(250 * t2);
+      px[i + 2] = Math.min(255, Math.round(252 * t2));
     } else if (v.id === 'tancho') {       // 白身 + 头顶圆红斑
       const h = x < 1150 * sc ? heads[0] : heads[1];
       const d = Math.hypot(x - h.x, y - h.y);
       const circle = 1 - sstep(R - EDGE, R + EDGE, d);
       if (circle > 0) {
-        const shade = .8 + l * .45;
-        px[i]     = Math.round(px[i]     * (1 - circle) + Math.min(255, 212 * shade) * circle);
-        px[i + 1] = Math.round(px[i + 1] * (1 - circle) + 34 * shade * circle);
-        px[i + 2] = Math.round(px[i + 2] * (1 - circle) + 28 * shade * circle);
-      } else if (redAmt > 0) {            // 其余红斑全部褪白
-        const t = .84 + l * .16;
-        px[i]     = Math.round(px[i]     * (1 - redAmt) + 246 * t * redAmt);
-        px[i + 1] = Math.round(px[i + 1] * (1 - redAmt) + 243 * t * redAmt);
-        px[i + 2] = Math.round(px[i + 2] * (1 - redAmt) + 238 * t * redAmt);
+        const shade = .55 + base * .6;
+        px[i]     = Math.round(px[i]     * (1 - circle) + Math.min(255, 216 * shade + 40) * circle);
+        px[i + 1] = Math.round(px[i + 1] * (1 - circle) + 42 * shade * circle);
+        px[i + 2] = Math.round(px[i + 2] * (1 - circle) + 34 * shade * circle);
+      } else if (patA > 0) {              // 圆斑之外的红斑蓝斑全部褪成白
+        const t2 = Math.min(1, .2 + base * .9);
+        px[i]     = Math.round(px[i]     * (1 - patA) + 250 * t2 * patA);
+        px[i + 1] = Math.round(px[i + 1] * (1 - patA) + 247 * t2 * patA);
+        px[i + 2] = Math.round(px[i + 2] * (1 - patA) + 242 * t2 * patA);
       }
-    } else if (v.sumi) {                  // 三色：噪声墨斑
+    } else if (v.sumi) {                  // 三色：清掉蓝灰杂斑，再落墨
+      if (blueA > 0) {
+        const t2 = Math.min(1, .2 + base * .9);
+        px[i]     = Math.round(px[i]     * (1 - blueA) + 249 * t2 * blueA);
+        px[i + 1] = Math.round(px[i + 1] * (1 - blueA) + 246 * t2 * blueA);
+        px[i + 2] = Math.round(px[i + 2] * (1 - blueA) + 241 * t2 * blueA);
+      }
       if (!v.sumi.head && y > 1300 * sc) continue;        // 大正：头部留白
-      if (v.id === 'sanke' && redAmt > .45) continue;     // 大正：墨不压红
+      if (v.id === 'sanke' && redA > .45) continue;       // 大正：墨不压红
       const m = fbm(x / w * v.sumi.freq, y / w * v.sumi.freq, v.sumi.seed);
       const ink = sstep(v.sumi.thr, v.sumi.thr + .075, m);
       if (ink > 0) {
@@ -435,7 +441,7 @@ function variantTexture (srcMap, v) {
   variantMapCache[key] = tex;
   return tex;
 }
-const KOI_N = isMobile ? 5 : 6;
+const KOI_N = 6;                                   // 六个品种一条不少
 const kois = [];
 const DEBUG_DIR = /debug/.test(location.search);   // ?debug 显示速度方向箭头
 let koiTemplate = null, koiAnims = null;
@@ -782,20 +788,41 @@ document.getElementById('saveBtn').addEventListener('click', () => {
 fmask.addEventListener('click', e => { if (e.target === fmask) fmask.classList.remove('show'); });
 
 // ---------------- 声音（程序生成，无外部资源） ----------------
-// 吉祥氛围乐：C 宫五声音阶（宫商角徵羽）古筝式轻拨 + 轻回声，无水噪
+// 古筝式吉祥乐：Karplus-Strong 物理建模拨弦（真实弦振动质感），
+// C 宫五声音阶，偶发上滑音与双音，轻回声余韵
 let audio = null;
 const PENTA = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
-function pluck (freq, t, vol = .1, dur = 2.4) {
+const pluckBufs = {};
+function makePluckBuf (ctx, freq) {
+  const sr = ctx.sampleRate, dur = 2.8, n = Math.floor(sr * dur);
+  const buf = ctx.createBuffer(1, n, sr);
+  const out = buf.getChannelData(0);
+  const N = Math.round(sr / freq);
+  const line = new Float32Array(N);
+  for (let i = 0; i < N; i++) line[i] = (Math.random() * 2 - 1) * (1 - i / N * .35); // 靠桥拨弦的亮噪起振
+  let idx = 0, prev = 0;
+  for (let i = 0; i < n; i++) {
+    out[i] = line[idx];
+    let s = .5 * (line[idx] + line[(idx + 1) % N]) * .9965;  // 弦损耗
+    s = .74 * s + .26 * prev; prev = s;                       // 轻低通→温润木感
+    line[idx] = s;
+    idx = (idx + 1) % N;
+  }
+  const fadeN = Math.floor(sr * .006);
+  for (let i = 0; i < fadeN; i++) out[i] *= i / fadeN;        // 去起振“咔”声
+  return buf;
+}
+function pluck (freq, t, vol = .5, bend = false) {
   const { ctx, master } = audio;
-  const o  = ctx.createOscillator(), g  = ctx.createGain();
-  const o2 = ctx.createOscillator(), g2 = ctx.createGain();
-  o.type = 'sine';  o.frequency.value = freq;
-  o2.type = 'sine'; o2.frequency.value = freq * 2; g2.gain.value = .26;  // 八度泛音→拨弦质感
-  g.gain.setValueAtTime(.0001, t);
-  g.gain.exponentialRampToValueAtTime(vol, t + .014);
-  g.gain.exponentialRampToValueAtTime(.0001, t + dur);
-  o.connect(g); o2.connect(g2); g2.connect(g); g.connect(master);
-  o.start(t); o.stop(t + dur + .1); o2.start(t); o2.stop(t + dur + .1);
+  let b = pluckBufs[freq]; if (!b) b = pluckBufs[freq] = makePluckBuf(ctx, freq);
+  const src = ctx.createBufferSource(); src.buffer = b;
+  if (bend) {                                                 // 古筝上滑音
+    src.playbackRate.setValueAtTime(.9, t);
+    src.playbackRate.linearRampToValueAtTime(1, t + .24);
+  }
+  const g = ctx.createGain(); g.gain.value = vol;
+  src.connect(g); g.connect(master);
+  src.start(t);
 }
 function initAudio () {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -803,23 +830,26 @@ function initAudio () {
   master.connect(ctx.destination);
   // 轻回声（似远寺余韵）
   const delay = ctx.createDelay(); delay.delayTime.value = .31;
-  const fb = ctx.createGain(); fb.gain.value = .24;
-  const wet = ctx.createGain(); wet.gain.value = .16;
+  const fb = ctx.createGain(); fb.gain.value = .22;
+  const wet = ctx.createGain(); wet.gain.value = .14;
   master.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(wet); wet.connect(ctx.destination);
   audio = { ctx, master };
-  // 生成式旋律：单音漫弹，偶发跟一个四/五度和音
+  // 生成式旋律：五声音阶上随机漫步（级进为主），偶发滑音/双音
+  let cur = 3;
   (function melody () {
     if (!audio) return;
     if (audio.master.gain.value > .01) {
       const t = ctx.currentTime + .05;
-      const i = Math.floor(Math.random() * PENTA.length);
-      pluck(PENTA[i], t, .085 + Math.random() * .05);
-      if (Math.random() < .38) {
-        const j = Math.min(PENTA.length - 1, i + (Math.random() < .5 ? 3 : 4));
-        pluck(PENTA[j], t + .14 + Math.random() * .22, .055);
+      const step = Math.random() < .7 ? (Math.random() < .5 ? -1 : 1)
+                                      : (Math.random() < .5 ? -2 : 2);
+      cur = Math.max(0, Math.min(PENTA.length - 1, cur + step));
+      pluck(PENTA[cur], t, .4 + Math.random() * .2, Math.random() < .22);
+      if (Math.random() < .3) {                               // 双音：低四/五度相和
+        const j = Math.max(0, cur - 3);
+        pluck(PENTA[j], t + .16 + Math.random() * .2, .26);
       }
     }
-    setTimeout(melody, 2400 + Math.random() * 4200);
+    setTimeout(melody, 2200 + Math.random() * 3600);
   })();
 }
 function playChime () {
