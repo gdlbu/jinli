@@ -9,7 +9,7 @@
 - **鱼群**：6 个流行锦鲤品种——红白 / 大正三色 / 昭和三色 / 丹顶 / 黄金 / 白金，花纹在贴图 UV 空间逐像素绘制（三色墨斑为种子噪声生成、丹顶自动定位头顶圆斑），体型按品种差异化；贴近水面巡游、清水下完全可见；带惯性的转向物理，硬性碰撞分离不穿模，骨骼游动动画；`?debug` 可显示方向箭头校验
 - **涟漪聚鱼**：点击水面产生物理感涟漪（主波包约1.25m/s + 前导毛细波 + 尾随慢波，振幅按 1/√r 摊薄、随时间衰减），附近锦鲤加速游来聚集
 - **求好运**：右下按钮，一条锦鲤跃出水面、水花落下，浮现签文卡片（48 种诗句签文 × 88 签号），可保存 PNG / 系统分享
-- **氛围**：固定白天景，翠绿清澈见底；池底细沙焦散；bloom 辉光（桌面端）；程序生成的吉祥音乐——五声音阶古筝式轻拨带回声（无音频资源、无水噪）
+- **氛围**：固定白天景，翠绿清澈见底；池底细沙焦散；bloom 辉光（桌面端）；真实古筝录音《Guzheng Morning》（Antti Luode 作，CC BY 3.0，via Wikimedia Commons），开声后懒加载；离线时回退 Karplus-Strong 生成式拨弦
 - **中英双语**：默认中文，右上可切英文
 
 ## 工程
@@ -23,4 +23,5 @@
 
 - `models/koi.glb` 带骨骼游动动画的锦鲤（源自旧版 jin.li）
 - `textures/skybox.hdr`、`textures/waternormals.jpg`
+- `assets/audio/guzheng-morning.mp3` — "Guzheng Morning" by Antti Luode, CC BY 3.0, via Wikimedia Commons
 - `three/` 仅收录用到的 three.js r166 模块

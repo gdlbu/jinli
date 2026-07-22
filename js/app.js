@@ -261,40 +261,42 @@ const rippleMat = new THREE.ShaderMaterial({
   vertexShader: /* glsl */`
     varying vec2 vPos;
     void main(){
-      vPos = position.xy;
+      // 用世界坐标：修复平面旋转导致的 z 轴镜像（涟漪必须出现在点击处）
+      vPos = (modelMatrix * vec4(position, 1.0)).xz;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }`,
   fragmentShader: /* glsl */`
     uniform float uTime;
     uniform vec4 uRipples[${MAX_RIPPLES}];
     varying vec2 vPos;
-    // 真实感涟漪：单一主波群 + 色散（波长随传播变长）+ 角向不均匀 +
-    // 尖峰缓谷波形；振幅按 1/sqrt(r) 摊薄、随时间指数衰减
+    // 真实感涟漪：3-4 圈清晰细环，色散（外圈波长渐大）+ 角向轻微不均匀；
+    // 振幅按 1/sqrt(r) 摊薄、随时间指数衰减
     void main(){
       float w = 0.0;
       for (int i = 0; i < ${MAX_RIPPLES}; i++){
         vec4 rp = uRipples[i];
         float age = uTime - rp.z;
-        if (age < 0.0 || age > 6.5) continue;
+        if (age < 0.0 || age > 5.0) continue;
         vec2 rel = vPos - rp.xy;
         float d = length(rel);
-        float grow = smoothstep(0.0, 0.1, age);
-        float fade = exp(-age * 0.7) * (1.0 - smoothstep(5.0, 6.5, age));
-        float lambda = 0.5 + age * 0.55;              // 色散：外圈波长渐大
-        float x = d - (0.18 + age * 1.15);
-        float env = exp(-x * x / (0.5 * lambda * lambda));
+        float grow = smoothstep(0.0, 0.08, age);
+        float fade = exp(-age * 0.85) * (1.0 - smoothstep(3.8, 5.0, age));
+        float lambda = 0.42 + age * 0.34;             // 色散：外圈波长渐大
+        float x = d - (0.15 + age * 1.05);
+        float env = exp(-x * x / (1.15 * lambda * lambda));
         float ph = 6.2831 * x / lambda;
-        float wave = sin(ph) + 0.33 * sin(2.0 * ph + 1.2);   // 尖峰缓谷
+        float wave = sin(ph) + 0.3 * sin(2.0 * ph + 1.2);   // 尖峰缓谷
+        wave = sign(wave) * pow(abs(wave), 0.72);           // 让环更“利”
         float ang = atan(rel.y, rel.x);
-        float irr = 0.82 + 0.12 * sin(ang * 3.0 + rp.z * 13.0)
-                         + 0.06 * sin(ang * 7.0 - rp.z * 5.0); // 圆环轻微不均匀
-        w += wave * env * irr * rp.w * grow * fade / sqrt(1.0 + d * 1.3);
+        float irr = 0.86 + 0.10 * sin(ang * 3.0 + rp.z * 13.0)
+                         + 0.04 * sin(ang * 7.0 - rp.z * 5.0);
+        w += wave * env * irr * rp.w * grow * fade / sqrt(1.0 + d * 1.2);
       }
-      float s = clamp(w * 2.4, -1.0, 1.0);
-      vec3 bright = vec3(0.88, 1.0, 0.96);
+      float s = clamp(w * 2.2, -1.0, 1.0);
+      vec3 bright = vec3(0.90, 1.0, 0.97);
       vec3 dark   = vec3(0.03, 0.14, 0.10);
       vec3 col = s > 0.0 ? mix(vec3(0.5), bright, s) : mix(vec3(0.5), dark, -s);
-      float a = s > 0.0 ? s * 0.4 : -s * 0.2;
+      float a = s > 0.0 ? s * 0.5 : -s * 0.22;
       gl_FragColor = vec4(col, a);
     }`
 });
@@ -386,8 +388,9 @@ function variantTexture (srcMap, v) {
     const l = (mx + Math.min(r, gr, b)) / 2;
     const redA  = sstep(.05, .20, r - Math.max(gr, b));    // 红斑强度
     const blueA = sstep(.035, .12, b - r);                 // 蓝灰杂斑强度
-    const patA  = Math.max(redA, blueA);
-    // “无花纹底色亮度”：花纹处回填白底亮度（≈.87），保留鳞片明暗起伏
+    const darkA = 1 - sstep(.5, .8, mx);                   // 背部橄榄灰晕染等暗区
+    const patA  = Math.max(redA, Math.max(blueA, darkA));
+    // “无花纹底色亮度”：花纹/暗区处回填白底亮度（≈.87），保留鳞片明暗起伏
     const base = mx * (1 - patA) + (.87 + (mx - .87) * .25) * patA;
 
     if (v.id === 'yamabuki') {            // 通体金黄：花纹亮度全部抹平后镀金
@@ -414,12 +417,13 @@ function variantTexture (srcMap, v) {
         px[i + 1] = Math.round(px[i + 1] * (1 - patA) + 247 * t2 * patA);
         px[i + 2] = Math.round(px[i + 2] * (1 - patA) + 242 * t2 * patA);
       }
-    } else if (v.sumi) {                  // 三色：清掉蓝灰杂斑，再落墨
-      if (blueA > 0) {
+    } else if (v.sumi) {                  // 三色：清蓝灰杂斑与背部暗晕（护住红斑），再落墨
+      const cleanA = Math.max(blueA, darkA * (1 - redA));
+      if (cleanA > 0) {
         const t2 = Math.min(1, .2 + base * .9);
-        px[i]     = Math.round(px[i]     * (1 - blueA) + 249 * t2 * blueA);
-        px[i + 1] = Math.round(px[i + 1] * (1 - blueA) + 246 * t2 * blueA);
-        px[i + 2] = Math.round(px[i + 2] * (1 - blueA) + 241 * t2 * blueA);
+        px[i]     = Math.round(px[i]     * (1 - cleanA) + 249 * t2 * cleanA);
+        px[i + 1] = Math.round(px[i + 1] * (1 - cleanA) + 246 * t2 * cleanA);
+        px[i + 2] = Math.round(px[i + 2] * (1 - cleanA) + 241 * t2 * cleanA);
       }
       if (!v.sumi.head && y > 1300 * sc) continue;        // 大正：头部留白
       if (v.id === 'sanke' && redA > .45) continue;       // 大正：墨不压红
@@ -461,6 +465,11 @@ new GLTFLoader(manager).load('/models/koi.glb', gltf => {
         n.castShadow = !isMobile;
         n.material = n.material.clone();
         if (n.material.map) n.material.map = variantTexture(n.material.map, v);
+        if (v.id !== 'kohaku') {
+          // 变色品种：去掉粗糙度/金属度贴图，杜绝高光层残留原花纹
+          n.material.roughnessMap = null;
+          n.material.metalnessMap = null;
+        }
         if ('metalness' in n.material) n.material.metalness = .12;
         if ('roughness' in n.material) n.material.roughness = .45;
         if (n.material.emissive) { n.material.emissive.setHex(0xffe8d0); n.material.emissiveIntensity = .04; }
@@ -821,30 +830,47 @@ function pluck (freq, t, vol = .5, bend = false) {
     src.playbackRate.linearRampToValueAtTime(1, t + .24);
   }
   const g = ctx.createGain(); g.gain.value = vol;
-  src.connect(g); g.connect(master);
+  src.connect(g); g.connect(audio.fxBus || master);
   src.start(t);
 }
 function initAudio () {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
   const master = ctx.createGain(); master.gain.value = 0;
   master.connect(ctx.destination);
-  // 轻回声（似远寺余韵）
+  // 轻回声（似远寺余韵）——只喂给合成音效，真实音乐不过回声
+  const fxBus = ctx.createGain(); fxBus.gain.value = 1; fxBus.connect(master);
   const delay = ctx.createDelay(); delay.delayTime.value = .31;
   const fb = ctx.createGain(); fb.gain.value = .22;
   const wet = ctx.createGain(); wet.gain.value = .14;
-  master.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(wet); wet.connect(ctx.destination);
-  audio = { ctx, master };
-  // 生成式旋律：五声音阶上随机漫步（级进为主），偶发滑音/双音
+  fxBus.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(wet); wet.connect(master);
+  audio = { ctx, master, fxBus, musicOn: false };
+
+  // 真实古筝录音：《Guzheng Morning》 Antti Luode（CC BY 3.0，via Wikimedia Commons）
+  // 开声后才拉取；加载失败则回退到 Karplus-Strong 生成式拨弦
+  fetch('/assets/audio/guzheng-morning.mp3')
+    .then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
+    .then(ab => ctx.decodeAudioData(ab))
+    .then(buf => {
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const g = ctx.createGain(); g.gain.value = .5;
+      src.connect(g); g.connect(master);
+      src.start();
+      audio.musicOn = true;
+    })
+    .catch(() => { audio.musicOn = false; });
+
+  // 生成式旋律兜底：真实音乐没起来时才轻弹
   let cur = 3;
   (function melody () {
     if (!audio) return;
-    if (audio.master.gain.value > .01) {
+    if (!audio.musicOn && audio.master.gain.value > .01) {
       const t = ctx.currentTime + .05;
       const step = Math.random() < .7 ? (Math.random() < .5 ? -1 : 1)
                                       : (Math.random() < .5 ? -2 : 2);
       cur = Math.max(0, Math.min(PENTA.length - 1, cur + step));
       pluck(PENTA[cur], t, .4 + Math.random() * .2, Math.random() < .22);
-      if (Math.random() < .3) {                               // 双音：低四/五度相和
+      if (Math.random() < .3) {
         const j = Math.max(0, cur - 3);
         pluck(PENTA[j], t + .16 + Math.random() * .2, .26);
       }
@@ -861,7 +887,7 @@ function playChime () {
     g.gain.setValueAtTime(.0001, t + i * .09);
     g.gain.exponentialRampToValueAtTime(.06, t + i * .09 + .02);
     g.gain.exponentialRampToValueAtTime(.0001, t + i * .09 + 1.6);
-    o.connect(g); g.connect(master);
+    o.connect(g); g.connect(audio.fxBus || master);
     o.start(t + i * .09); o.stop(t + i * .09 + 1.7);
   });
 }
@@ -874,7 +900,7 @@ function playSplash () {
   const src = ctx.createBufferSource(); src.buffer = buf;
   const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = .8;
   const g = ctx.createGain(); g.gain.value = .26;
-  src.connect(bp); bp.connect(g); g.connect(master);
+  src.connect(bp); bp.connect(g); g.connect(audio.fxBus || master);
   src.start(t);
 }
 const soundBtn = document.getElementById('soundBtn');
