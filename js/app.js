@@ -379,26 +379,43 @@ function variantTexture (srcMap, v) {
       : (i === 0 ? { x: 950 * sc, y: 1470 * sc } : { x: 1420 * sc, y: 1600 * sc }));
   }
 
+  // —— 高通拉平：低频亮度场（32px 盒平均+双线性），把花纹(低频)整体抹平，
+  //    只保留鳞片/鳍条等高频细节 —— 品种底色从原理上纯净 ——
+  const GN = 64, cellW = w / GN, cellH = c.height / GN;
+  const sums = new Float64Array(GN * GN), cnts = new Float64Array(GN * GN);
+  for (let yy = 0; yy < c.height; yy++) {
+    const gy = Math.min(GN - 1, (yy / cellH) | 0);
+    for (let xx = 0; xx < w; xx++) {
+      const i2 = (yy * w + xx) * 4;
+      const gi = gy * GN + Math.min(GN - 1, (xx / cellW) | 0);
+      sums[gi] += Math.max(px[i2], px[i2 + 1], px[i2 + 2]) / 255; cnts[gi]++;
+    }
+  }
+  for (let i2 = 0; i2 < sums.length; i2++) sums[i2] /= Math.max(1, cnts[i2]);
+  const lumAt = (x, y) => {
+    const gx = Math.min(GN - 1.001, Math.max(0, x / cellW - .5));
+    const gy = Math.min(GN - 1.001, Math.max(0, y / cellH - .5));
+    const x0 = gx | 0, y0 = gy | 0, fx = gx - x0, fy = gy - y0;
+    return (sums[y0 * GN + x0] * (1 - fx) + sums[y0 * GN + x0 + 1] * fx) * (1 - fy)
+         + (sums[(y0 + 1) * GN + x0] * (1 - fx) + sums[(y0 + 1) * GN + x0 + 1] * fx) * fy;
+  };
+
   const R = 92 * sc, EDGE = 20 * sc;      // 丹顶圆斑半径与柔边
   for (let i = 0; i < px.length; i += 4) {
     const p = i >> 2, x = p % w, y = (p / w) | 0;
     if (inEye(x, y) || inOral(x, y)) continue;
     const r = px[i] / 255, gr = px[i + 1] / 255, b = px[i + 2] / 255;
     const mx = Math.max(r, gr, b);
-    const l = (mx + Math.min(r, gr, b)) / 2;
-    const redA  = sstep(.05, .20, r - Math.max(gr, b));    // 红斑强度
-    const blueA = sstep(.035, .12, b - r);                 // 蓝灰杂斑强度
-    const darkA = 1 - sstep(.5, .8, mx);                   // 背部橄榄灰晕染等暗区
-    const patA  = Math.max(redA, Math.max(blueA, darkA));
-    // “无花纹底色亮度”：花纹/暗区处回填白底亮度（≈.87），保留鳞片明暗起伏
-    const base = mx * (1 - patA) + (.87 + (mx - .87) * .25) * patA;
+    const redA = sstep(.05, .20, r - Math.max(gr, b));     // 红斑强度
+    // 统一底色亮度 + 高频细节（低频花纹被 lumAt 减掉）
+    const base = Math.min(1, Math.max(.25, .845 + (mx - lumAt(x, y)) * .6));
 
-    if (v.id === 'yamabuki') {            // 通体金黄：花纹亮度全部抹平后镀金
+    if (v.id === 'yamabuki') {            // 通体金黄
       const t2 = .26 + base * .74;
       px[i]     = Math.min(255, Math.round(268 * t2));
       px[i + 1] = Math.min(255, Math.round(186 * t2));
       px[i + 2] = Math.round(34 * t2 * t2);
-    } else if (v.id === 'platinum') {     // 通体银白：同样抹平花纹
+    } else if (v.id === 'platinum') {     // 通体银白
       const t2 = Math.min(1, .16 + base * .92);
       px[i] = px[i + 1] = Math.round(250 * t2);
       px[i + 2] = Math.min(255, Math.round(252 * t2));
@@ -411,26 +428,26 @@ function variantTexture (srcMap, v) {
         px[i]     = Math.round(px[i]     * (1 - circle) + Math.min(255, 216 * shade + 40) * circle);
         px[i + 1] = Math.round(px[i + 1] * (1 - circle) + 42 * shade * circle);
         px[i + 2] = Math.round(px[i + 2] * (1 - circle) + 34 * shade * circle);
-      } else if (patA > 0) {              // 圆斑之外的红斑蓝斑全部褪成白
+      } else {
         const t2 = Math.min(1, .2 + base * .9);
-        px[i]     = Math.round(px[i]     * (1 - patA) + 250 * t2 * patA);
-        px[i + 1] = Math.round(px[i + 1] * (1 - patA) + 247 * t2 * patA);
-        px[i + 2] = Math.round(px[i + 2] * (1 - patA) + 242 * t2 * patA);
+        px[i]     = Math.round(250 * t2);
+        px[i + 1] = Math.round(247 * t2);
+        px[i + 2] = Math.round(242 * t2);
       }
-    } else if (v.sumi) {                  // 三色：清蓝灰杂斑与背部暗晕（护住红斑），再落墨
-      const cleanA = Math.max(blueA, darkA * (1 - redA));
-      if (cleanA > 0) {
+    } else if (v.sumi) {                  // 三色：白底统一化（护红斑），再落墨
+      const wG = 1 - sstep(.25, .6, redA);
+      if (wG > 0) {
         const t2 = Math.min(1, .2 + base * .9);
-        px[i]     = Math.round(px[i]     * (1 - cleanA) + 249 * t2 * cleanA);
-        px[i + 1] = Math.round(px[i + 1] * (1 - cleanA) + 246 * t2 * cleanA);
-        px[i + 2] = Math.round(px[i + 2] * (1 - cleanA) + 241 * t2 * cleanA);
+        px[i]     = Math.round(px[i]     * (1 - wG) + 250 * t2 * wG);
+        px[i + 1] = Math.round(px[i + 1] * (1 - wG) + 247 * t2 * wG);
+        px[i + 2] = Math.round(px[i + 2] * (1 - wG) + 242 * t2 * wG);
       }
       if (!v.sumi.head && y > 1300 * sc) continue;        // 大正：头部留白
       if (v.id === 'sanke' && redA > .45) continue;       // 大正：墨不压红
       const m = fbm(x / w * v.sumi.freq, y / w * v.sumi.freq, v.sumi.seed);
       const ink = sstep(v.sumi.thr, v.sumi.thr + .075, m);
       if (ink > 0) {
-        const v0 = .06 + l * .13;         // 保留鳞片明暗的炭墨
+        const v0 = .06 + base * .13;      // 保留细节明暗的炭墨
         px[i]     = Math.round(px[i]     * (1 - ink) + 255 * v0 * ink);
         px[i + 1] = Math.round(px[i + 1] * (1 - ink) + 255 * (v0 + .012) * ink);
         px[i + 2] = Math.round(px[i + 2] * (1 - ink) + 255 * (v0 + .035) * ink);
