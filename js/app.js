@@ -245,7 +245,7 @@ water = new Water(new THREE.PlaneGeometry(400, 400), {
 water.rotation.x = -Math.PI / 2;
 water.position.y = 0;
 water.material.transparent = true;
-water.material.uniforms.alpha.value = 0.26;   // 清澈见底，鱼完全可见
+water.material.uniforms.alpha.value = 0.12;   // 接近全透：鱼无遮挡，仍留水光
 scene.add(water);
 
 // ---------------- 涟漪（自定义 shader 平面） ----------------
