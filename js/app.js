@@ -323,7 +323,7 @@ const VARIANTS = [
   { id: 'kohaku',   body: { sx: 1.00, sy: 1.00, sz: 1.00 } },
   { id: 'sanke',    body: { sx: 1.06, sy: 1.05, sz: 1.08 },
     sumi: { seed: 7, freq: 6.8, thr: .58, head: false },
-    redCut: { seed: 31, freq: 3.2, keep: .48 } },
+    redGen: { seed: 41, freq: 3.0, thr: .60 } },
   { id: 'benigoi',  body: { sx: 1.12, sy: 1.07, sz: 1.02 } },
   { id: 'tancho',   body: { sx: 0.93, sy: 0.96, sz: 0.97 } },
   { id: 'yamabuki', body: { sx: 0.97, sy: 0.95, sz: 1.14 } },
@@ -440,22 +440,23 @@ function variantTexture (srcMap, v) {
         px[i + 1] = Math.round(247 * t2);
         px[i + 2] = Math.round(242 * t2);
       }
-    } else if (v.sumi) {                  // 三色：红斑噪声裁剪→白底统一化→落墨
-      let redK = redA;
-      if (v.redCut && redA > 0) {         // 用低频噪声决定保留哪些红斑（与红白不同款）
-        const keep = sstep(v.redCut.keep - .07, v.redCut.keep + .07,
-                           fbm(x / w * v.redCut.freq, y / w * v.redCut.freq, v.redCut.seed));
-        redK = redA * keep;
+    } else if (v.sumi) {                  // 三色：清掉全部原生红斑→噪声生成全新红斑→落墨
+      // 1) 白底统一化（原红斑一并褪白——红斑布局与红白彻底脱钩）
+      const t2 = Math.min(1, .2 + base * .9);
+      px[i]     = Math.round(250 * t2);
+      px[i + 1] = Math.round(247 * t2);
+      px[i + 2] = Math.round(242 * t2);
+      // 2) 独立种子噪声生成新的红斑
+      const mR = fbm(x / w * v.redGen.freq, y / w * v.redGen.freq, v.redGen.seed);
+      const hi = sstep(v.redGen.thr, v.redGen.thr + .08, mR);
+      if (hi > 0) {
+        const shade = .55 + base * .6;
+        px[i]     = Math.round(px[i]     * (1 - hi) + Math.min(255, 216 * shade + 40) * hi);
+        px[i + 1] = Math.round(px[i + 1] * (1 - hi) + 46 * shade * hi);
+        px[i + 2] = Math.round(px[i + 2] * (1 - hi) + 36 * shade * hi);
       }
-      const wG = 1 - sstep(.25, .6, redK);
-      if (wG > 0) {
-        const t2 = Math.min(1, .2 + base * .9);
-        px[i]     = Math.round(px[i]     * (1 - wG) + 250 * t2 * wG);
-        px[i + 1] = Math.round(px[i + 1] * (1 - wG) + 247 * t2 * wG);
-        px[i + 2] = Math.round(px[i + 2] * (1 - wG) + 242 * t2 * wG);
-      }
-      if (!v.sumi.head && y > 1300 * sc) continue;        // 大正：头部留白
-      if (redK > .45) continue;                           // 墨不压红
+      if (hi > .45) continue;                             // 墨不压红
+      if (!v.sumi.head && y > 1300 * sc) continue;        // 大正：头部留白（墨）
       const m = fbm(x / w * v.sumi.freq, y / w * v.sumi.freq, v.sumi.seed);
       const ink = sstep(v.sumi.thr, v.sumi.thr + .075, m);
       if (ink > 0) {
