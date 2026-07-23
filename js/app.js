@@ -239,13 +239,13 @@ water = new Water(new THREE.PlaneGeometry(400, 400), {
   sunDirection: sunPos.clone().normalize(),
   sunColor: DAY.sunColor,
   waterColor: DAY.waterColor,
-  distortionScale: 1.3,
+  distortionScale: 1.1,
   fog: false
 });
 water.rotation.x = -Math.PI / 2;
 water.position.y = 0;
 water.material.transparent = true;
-water.material.uniforms.alpha.value = 0.34;   // 清澈见底，鱼完全可见
+water.material.uniforms.alpha.value = 0.26;   // 清澈见底，鱼完全可见
 scene.add(water);
 
 // ---------------- 涟漪（自定义 shader 平面） ----------------
@@ -492,6 +492,13 @@ function variantTexture (srcMap, v) {
 const KOI_N = 6;                                   // 六个品种一条不少
 const kois = [];
 const DEBUG_DIR = /debug/.test(location.search);   // ?debug 显示速度方向箭头
+if (DEBUG_DIR) {
+  window.kois = kois;
+  window.__koiBounds = () => kois.map(k => {
+    const b = new THREE.Box3().setFromObject(k.root);
+    return { top: +b.max.y.toFixed(2), bot: +b.min.y.toFixed(2), len: +Math.max(b.max.x-b.min.x, b.max.z-b.min.z).toFixed(2) };
+  });
+}
 let koiTemplate = null, koiAnims = null;
 
 new GLTFLoader(manager).load('/models/koi.glb', gltf => {
@@ -545,7 +552,7 @@ new GLTFLoader(manager).load('/models/koi.glb', gltf => {
       heading: Math.random() * Math.PI * 2,
       speed: cruise, baseSpeed: cruise,
       angVel: 0,                                 // 当前角速度 rad/s（惯性转向）
-      depth: -0.30 - Math.random() * .18,        // 贴近水面巡游，背脊隐约破水
+      depth: -1.02 - Math.random() * .22,        // 全身没水，背鳍随起伏偶尔擦破水面（实测校准）
       wanderPh: Math.random() * 100,
       wanderTarget: null, wanderUntil: 0,        // 闲游目标点
       roll: 0, pitch: 0, jump: null,
