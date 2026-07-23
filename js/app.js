@@ -311,19 +311,20 @@ function addRipple (x, z, strength = 1) {
 }
 
 // ---------------- 锦鲤鱼群 ----------------
-// 六个流行品种，花纹在 UV 空间逐像素绘制（贴图 2048² 布局：两条对角鱼身条带，
-// 头在条带下端 y>1250 处；眼球在右下角、口腔件在顶部中央——这两处不上色）：
-//   红白 Kohaku   —— 原版红斑
-//   大正三色 Sanke —— 红斑 + 种子噪声生成的墨斑（白底为主，避开头部）
-//   昭和三色 Showa —— 更大块的缠身墨斑，头部也有墨
+// 六个真实品种，花纹在 UV 空间逐像素绘制（低频花纹高通拉平，只留鳞鳍细节）：
+//   红白 Kohaku   —— 原版红斑（不动）
+//   大正三色 Sanke —— 红斑经噪声重新裁剪（与红白不同款）+ 墨斑，头部留白
+//   绯鲤 Benigoi   —— 通体绯红无斑（真实纯红品种）
 //   丹顶 Tancho    —— 全身纯白，仅头顶一枚圆红斑
 //   黄金 Yamabuki  —— 通体金黄的金属系
 //   白金 Platinum  —— 通体银白的金属系
-// 体型也按品种差异化：sx=体宽 sy=体高 sz=体长
+// 体型按品种差异化：sx=体宽 sy=体高 sz=体长
 const VARIANTS = [
   { id: 'kohaku',   body: { sx: 1.00, sy: 1.00, sz: 1.00 } },
-  { id: 'sanke',    body: { sx: 1.06, sy: 1.05, sz: 1.08 }, sumi: { seed: 7,  freq: 6.8, thr: .58, head: false } },
-  { id: 'showa',    body: { sx: 1.17, sy: 1.10, sz: 0.99 }, sumi: { seed: 23, freq: 4.6, thr: .52, head: true  } },
+  { id: 'sanke',    body: { sx: 1.06, sy: 1.05, sz: 1.08 },
+    sumi: { seed: 7, freq: 6.8, thr: .58, head: false },
+    redCut: { seed: 31, freq: 3.2, keep: .48 } },
+  { id: 'benigoi',  body: { sx: 1.12, sy: 1.07, sz: 1.02 } },
   { id: 'tancho',   body: { sx: 0.93, sy: 0.96, sz: 0.97 } },
   { id: 'yamabuki', body: { sx: 0.97, sy: 0.95, sz: 1.14 } },
   { id: 'platinum', body: { sx: 0.88, sy: 0.94, sz: 1.06 } },
@@ -415,6 +416,11 @@ function variantTexture (srcMap, v) {
       px[i]     = Math.min(255, Math.round(268 * t2));
       px[i + 1] = Math.min(255, Math.round(186 * t2));
       px[i + 2] = Math.round(34 * t2 * t2);
+    } else if (v.id === 'benigoi') {      // 通体绯红（绯鲤）
+      const t2 = .3 + base * .7;
+      px[i]     = Math.min(255, Math.round(238 * t2));
+      px[i + 1] = Math.round(74 * t2 * t2);
+      px[i + 2] = Math.round(48 * t2 * t2);
     } else if (v.id === 'platinum') {     // 通体银白
       const t2 = Math.min(1, .16 + base * .92);
       px[i] = px[i + 1] = Math.round(250 * t2);
@@ -434,8 +440,14 @@ function variantTexture (srcMap, v) {
         px[i + 1] = Math.round(247 * t2);
         px[i + 2] = Math.round(242 * t2);
       }
-    } else if (v.sumi) {                  // 三色：白底统一化（护红斑），再落墨
-      const wG = 1 - sstep(.25, .6, redA);
+    } else if (v.sumi) {                  // 三色：红斑噪声裁剪→白底统一化→落墨
+      let redK = redA;
+      if (v.redCut && redA > 0) {         // 用低频噪声决定保留哪些红斑（与红白不同款）
+        const keep = sstep(v.redCut.keep - .07, v.redCut.keep + .07,
+                           fbm(x / w * v.redCut.freq, y / w * v.redCut.freq, v.redCut.seed));
+        redK = redA * keep;
+      }
+      const wG = 1 - sstep(.25, .6, redK);
       if (wG > 0) {
         const t2 = Math.min(1, .2 + base * .9);
         px[i]     = Math.round(px[i]     * (1 - wG) + 250 * t2 * wG);
@@ -443,7 +455,7 @@ function variantTexture (srcMap, v) {
         px[i + 2] = Math.round(px[i + 2] * (1 - wG) + 242 * t2 * wG);
       }
       if (!v.sumi.head && y > 1300 * sc) continue;        // 大正：头部留白
-      if (v.id === 'sanke' && redA > .45) continue;       // 大正：墨不压红
+      if (redK > .45) continue;                           // 墨不压红
       const m = fbm(x / w * v.sumi.freq, y / w * v.sumi.freq, v.sumi.seed);
       const ink = sstep(v.sumi.thr, v.sumi.thr + .075, m);
       if (ink > 0) {
@@ -862,9 +874,9 @@ function initAudio () {
   fxBus.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(wet); wet.connect(master);
   audio = { ctx, master, fxBus, musicOn: false };
 
-  // 真实古筝录音：《Guzheng Morning》 Antti Luode（CC BY 3.0，via Wikimedia Commons）
+  // 真实古筝录音：《Senor Guzheng and the Happy Monks》 Antti Luode(欢快国风)（CC BY 3.0，via Wikimedia Commons）
   // 开声后才拉取；加载失败则回退到 Karplus-Strong 生成式拨弦
-  fetch('/assets/audio/guzheng-morning.mp3')
+  fetch('/assets/audio/guzheng-happy.mp3')
     .then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
     .then(ab => ctx.decodeAudioData(ab))
     .then(buf => {
