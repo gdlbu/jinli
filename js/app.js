@@ -330,6 +330,16 @@ const VARIANTS = [
   { id: 'platinum', body: { sx: 0.88, sy: 0.94, sz: 1.06 } },
 ];
 
+// 品种鳍形/头型（骨骼正则 → 缩放系数；每帧在动画写入后叠乘，见 updateKois）
+//   白金：飘逸长尾长鳍；黄金：长尾；丹顶：小巧略长尾；绯鲤：短鳍圆头壮实；大正：背鳍略高
+const FIN_MODS = {
+  sanke:    [[/^DorsFin[A-E]1/, 1.15]],
+  benigoi:  [[/^PecFin1\./, .85], [/^PelvFin1\./, .87], [/^Tail[AB]1/, .92], [/^Head1/, 1.08]],
+  tancho:   [[/^Tail[AB]1/, 1.12], [/^PecFin1\./, 1.06]],
+  yamabuki: [[/^Tail[AB]1/, 1.18], [/^PecFin1\./, 1.1]],
+  platinum: [[/^Tail[AB]1/, 1.32], [/^PecFin1\./, 1.24], [/^DorsFin[A-E]1/, 1.1], [/^AnalFin[A-D]1/, 1.15]],
+};
+
 // —— 种子化二维值噪声（斑块生成用，跨会话稳定）——
 function hash2 (ix, iy, seed) {
   let h = (ix * 374761393 + iy * 668265263 + seed * 974634) | 0;
@@ -408,8 +418,10 @@ function variantTexture (srcMap, v) {
     const r = px[i] / 255, gr = px[i + 1] / 255, b = px[i + 2] / 255;
     const mx = Math.max(r, gr, b);
     const redA = sstep(.05, .20, r - Math.max(gr, b));     // 红斑强度
-    // 统一底色亮度 + 高频细节（低频花纹被 lumAt 减掉）
-    const base = Math.min(1, Math.max(.25, .845 + (mx - lumAt(x, y)) * .6));
+    const lm = lumAt(x, y);
+    const det = mx - lm;                                   // 鳞片高频细节（做斑缘锯齿用）
+    // 统一底色亮度 + 高频细节（低频花纹被 lm 减掉）
+    const base = Math.min(1, Math.max(.25, .845 + det * .6));
 
     if (v.id === 'yamabuki') {            // 通体金黄
       const t2 = .26 + base * .74;
@@ -446,9 +458,10 @@ function variantTexture (srcMap, v) {
       px[i]     = Math.round(250 * t2);
       px[i + 1] = Math.round(247 * t2);
       px[i + 2] = Math.round(242 * t2);
-      // 2) 独立种子噪声生成新的红斑
-      const mR = fbm(x / w * v.redGen.freq, y / w * v.redGen.freq, v.redGen.seed);
-      const hi = sstep(v.redGen.thr, v.redGen.thr + .08, mR);
+      // 2) 独立种子噪声生成新的红斑：边缘利落（际），并随鳞片细节起伏出锯齿感
+      const jag = (vnoise(x / w * 46, y / w * 46, 77) - .5) * .10;
+      const mR = fbm(x / w * v.redGen.freq, y / w * v.redGen.freq, v.redGen.seed) + det * .3 + jag;
+      const hi = sstep(v.redGen.thr, v.redGen.thr + .018, mR);
       if (hi > 0) {
         const shade = .55 + base * .6;
         px[i]     = Math.round(px[i]     * (1 - hi) + Math.min(255, 216 * shade + 40) * hi);
@@ -457,8 +470,9 @@ function variantTexture (srcMap, v) {
       }
       if (hi > .45) continue;                             // 墨不压红
       if (!v.sumi.head && y > 1300 * sc) continue;        // 大正：头部留白（墨）
-      const m = fbm(x / w * v.sumi.freq, y / w * v.sumi.freq, v.sumi.seed);
-      const ink = sstep(v.sumi.thr, v.sumi.thr + .075, m);
+      const jag2 = (vnoise(x / w * 52, y / w * 52, 131) - .5) * .10;
+      const m = fbm(x / w * v.sumi.freq, y / w * v.sumi.freq, v.sumi.seed) + det * .3 + jag2;
+      const ink = sstep(v.sumi.thr, v.sumi.thr + .02, m);
       if (ink > 0) {
         const v0 = .06 + base * .13;      // 保留细节明暗的炭墨
         px[i]     = Math.round(px[i]     * (1 - ink) + 255 * v0 * ink);
@@ -515,10 +529,18 @@ new GLTFLoader(manager).load('/models/koi.glb', gltf => {
     action.play();
     action.time = Math.random() * clip.duration;
 
+    // 品种鳍形骨骼：记录 [骨骼, 系数, 原始scale]，每帧动画后叠乘
+    const finMods = [];
+    const mods = FIN_MODS[v.id];
+    if (mods) model.traverse(n => {
+      if (!n.isBone) return;
+      for (const [re, f] of mods) if (re.test(n.name)) { finMods.push([n, f, n.scale.clone()]); break; }
+    });
+
     const a = (i / KOI_N) * Math.PI * 2;
     const cruise = .55 + Math.random() * .35;
     const koi = {
-      root, mixer, action, scale: scale * Math.max(v.body.sx, v.body.sz),
+      root, mixer, action, finMods, scale: scale * Math.max(v.body.sx, v.body.sz),
       x: Math.cos(a) * 6, z: Math.sin(a) * 6,
       heading: Math.random() * Math.PI * 2,
       speed: cruise, baseSpeed: cruise,
@@ -548,6 +570,13 @@ function wrapAngle (a) {
 const MAX_TURN = 1.3;        // 最大角速度 rad/s（鱼不能瞬间掉头）
 const TURN_ACC = 2.6;        // 角加速度：转向需要时间建立/消解
 const KOI_ACCEL = 0.9;       // 直线加减速
+
+// 品种鳍形：还原骨骼→动画写入→叠乘系数（避免与动画的scale轨道相互累积）
+function updateMixer (k, dt) {
+  for (const m of k.finMods) m[0].scale.copy(m[2]);
+  k.mixer.update(dt);
+  for (const m of k.finMods) m[0].scale.multiplyScalar(m[1]);
+}
 
 function updateKois (dt, t) {
   for (const k of kois) {
@@ -623,7 +652,7 @@ function updateKois (dt, t) {
 
     // —— 6. 尾鳍摆动频率随速度（游得快尾巴摆得快）——
     k.action.timeScale = .5 + k.speed * .9;
-    k.mixer.update(dt);
+    updateMixer(k, dt);
 
     if (k.arrow) { k.arrow.position.set(k.x, .6, k.z); k.arrow.setDirection(new THREE.Vector3(Math.sin(k.heading), 0, Math.cos(k.heading))); }
 
@@ -701,7 +730,7 @@ function updateJump (k, dt, t) {
     k.root.rotation.set(0, k.heading, 0);
     return;
   }
-  k.mixer.update(dt * 1.6);
+  updateMixer(k, dt * 1.6);
   // 前进 + 抛物线（起跳前 0.25 蓄力下潜）
   const fwd = u * 6.5;
   k.x = J.x0 + Math.sin(J.h0) * fwd;
