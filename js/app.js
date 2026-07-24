@@ -425,14 +425,14 @@ function variantTexture (srcMap, v) {
 
     if (v.id === 'yamabuki') {            // 通体金黄
       const t2 = .26 + base * .74;
-      px[i]     = Math.min(255, Math.round(268 * t2));
-      px[i + 1] = Math.min(255, Math.round(186 * t2));
-      px[i + 2] = Math.round(34 * t2 * t2);
+      px[i]     = Math.min(255, Math.round(258 * t2));
+      px[i + 1] = Math.min(255, Math.round(216 * t2));
+      px[i + 2] = Math.round(52 * t2 * t2);
     } else if (v.id === 'benigoi') {      // 通体绯红（绯鲤）
       const t2 = .3 + base * .7;
-      px[i]     = Math.min(255, Math.round(238 * t2));
-      px[i + 1] = Math.round(74 * t2 * t2);
-      px[i + 2] = Math.round(48 * t2 * t2);
+      px[i]     = Math.min(255, Math.round(242 * t2));
+      px[i + 1] = Math.round(66 * t2 * t2);
+      px[i + 2] = Math.round(42 * t2 * t2);
     } else if (v.id === 'platinum') {     // 通体银白
       const t2 = Math.min(1, .16 + base * .92);
       px[i] = px[i + 1] = Math.round(250 * t2);
@@ -516,13 +516,18 @@ new GLTFLoader(manager).load('/models/koi.glb', gltf => {
         n.castShadow = !isMobile;
         n.material = n.material.clone();
         if (n.material.map) n.material.map = variantTexture(n.material.map, v);
+        const metal = v.id === 'yamabuki' || v.id === 'platinum';   // Ogon 金属系
         if (v.id !== 'kohaku') {
-          // 变色品种：去掉粗糙度/金属度贴图，杜绝高光层残留原花纹
+          // 变色品种：去掉粗糙度/金属度贴图，杜绝高光层残留原花纹；
+          // 鳍的透光会把颜色洗白——压低 transmission 让品种色显出来
           n.material.roughnessMap = null;
           n.material.metalnessMap = null;
+          if (n.material.transmission !== undefined && n.material.transmission > 0) {
+            n.material.transmission = .2;
+          }
         }
-        if ('metalness' in n.material) n.material.metalness = .12;
-        if ('roughness' in n.material) n.material.roughness = .45;
+        if ('metalness' in n.material) n.material.metalness = metal ? .5 : .12;
+        if ('roughness' in n.material) n.material.roughness = metal ? .3 : .45;
         if (n.material.emissive) { n.material.emissive.setHex(0xffe8d0); n.material.emissiveIntensity = .04; }
       }
     });
