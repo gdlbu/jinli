@@ -390,25 +390,56 @@ function variantTexture (srcMap, v) {
       : (i === 0 ? { x: 950 * sc, y: 1470 * sc } : { x: 1420 * sc, y: 1600 * sc }));
   }
 
-  // —— 高通拉平：低频亮度场（32px 盒平均+双线性），把花纹(低频)整体抹平，
-  //    只保留鳞片/鳍条等高频细节 —— 品种底色从原理上纯净 ——
+  // —— 分类归一：像素分成"白底类 / 花斑类(红斑·蓝斑·背部暗晕)"，
+  //    各自统计类内 32px 低频均值，只抹平类间的颜色差；
+  //    类内的鳞片结构（含鳞片间隙暗线）完整保留 —— 既无花纹残影又有真实鳞感 ——
   const GN = 64, cellW = w / GN, cellH = c.height / GN;
-  const sums = new Float64Array(GN * GN), cnts = new Float64Array(GN * GN);
+  const sumsA = new Float64Array(GN * GN), cntA = new Float64Array(GN * GN); // 白底类
+  const sumsB = new Float64Array(GN * GN), cntB = new Float64Array(GN * GN); // 花斑类
+  const patWOf = (r, gr, b, mx) => Math.max(
+    sstep(.05, .20, r - Math.max(gr, b)),        // 红斑
+    sstep(.035, .12, b - r),                     // 蓝灰杂斑
+    1 - sstep(.45, .75, mx));                    // 背部暗晕/暗区
   for (let yy = 0; yy < c.height; yy++) {
     const gy = Math.min(GN - 1, (yy / cellH) | 0);
     for (let xx = 0; xx < w; xx++) {
       const i2 = (yy * w + xx) * 4;
+      const r = px[i2] / 255, gr = px[i2 + 1] / 255, b = px[i2 + 2] / 255;
+      const mx = Math.max(r, gr, b);
+      const pw = patWOf(r, gr, b, mx);
       const gi = gy * GN + Math.min(GN - 1, (xx / cellW) | 0);
-      sums[gi] += Math.max(px[i2], px[i2 + 1], px[i2 + 2]) / 255; cnts[gi]++;
+      sumsA[gi] += mx * (1 - pw); cntA[gi] += 1 - pw;
+      sumsB[gi] += mx * pw;       cntB[gi] += pw;
     }
   }
-  for (let i2 = 0; i2 < sums.length; i2++) sums[i2] /= Math.max(1, cnts[i2]);
-  const lumAt = (x, y) => {
+  const norm = (sums, cnts) => {
+    for (let i2 = 0; i2 < sums.length; i2++) sums[i2] = cnts[i2] > 4 ? sums[i2] / cnts[i2] : -1;
+    // 空格子从邻居扩散补齐（花斑内部没有白底样本时借邻近值）
+    for (let pass = 0; pass < 6; pass++) {
+      let miss = 0;
+      for (let gy2 = 0; gy2 < GN; gy2++) for (let gx2 = 0; gx2 < GN; gx2++) {
+        const gi = gy2 * GN + gx2;
+        if (sums[gi] >= 0) continue;
+        let s = 0, n = 0;
+        for (const [dx2, dy2] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+          const nx = gx2 + dx2, ny = gy2 + dy2;
+          if (nx < 0 || ny < 0 || nx >= GN || ny >= GN) continue;
+          const nv = sums[ny * GN + nx];
+          if (nv >= 0) { s += nv; n++; }
+        }
+        if (n) sums[gi] = s / n; else miss++;
+      }
+      if (!miss) break;
+    }
+    for (let i2 = 0; i2 < sums.length; i2++) if (sums[i2] < 0) sums[i2] = .8;
+  };
+  norm(sumsA, cntA); norm(sumsB, cntB);
+  const lumAt = (grid, x, y) => {
     const gx = Math.min(GN - 1.001, Math.max(0, x / cellW - .5));
     const gy = Math.min(GN - 1.001, Math.max(0, y / cellH - .5));
     const x0 = gx | 0, y0 = gy | 0, fx = gx - x0, fy = gy - y0;
-    return (sums[y0 * GN + x0] * (1 - fx) + sums[y0 * GN + x0 + 1] * fx) * (1 - fy)
-         + (sums[(y0 + 1) * GN + x0] * (1 - fx) + sums[(y0 + 1) * GN + x0 + 1] * fx) * fy;
+    return (grid[y0 * GN + x0] * (1 - fx) + grid[y0 * GN + x0 + 1] * fx) * (1 - fy)
+         + (grid[(y0 + 1) * GN + x0] * (1 - fx) + grid[(y0 + 1) * GN + x0 + 1] * fx) * fy;
   };
 
   const R = 92 * sc, EDGE = 20 * sc;      // 丹顶圆斑半径与柔边
@@ -418,10 +449,11 @@ function variantTexture (srcMap, v) {
     const r = px[i] / 255, gr = px[i + 1] / 255, b = px[i + 2] / 255;
     const mx = Math.max(r, gr, b);
     const redA = sstep(.05, .20, r - Math.max(gr, b));     // 红斑强度
-    const lm = lumAt(x, y);
-    const det = mx - lm;                                   // 鳞片高频细节（做斑缘锯齿用）
-    // 统一底色亮度 + 高频细节（低频花纹被 lm 减掉）
-    const base = Math.min(1, Math.max(.25, .845 + det * .6));
+    const pw = patWOf(r, gr, b, mx);
+    // 类内归一：按所属类别取各自低频均值，类间色差被抹平、类内鳞纹全保留
+    const lm = lumAt(sumsA, x, y) * (1 - pw) + lumAt(sumsB, x, y) * pw;
+    const det = Math.max(-.22, Math.min(.22, mx - lm));    // 鳞片/鳍条细节（含间隙暗线）
+    const base = Math.min(1, Math.max(.2, .845 + det * .95));
 
     if (v.id === 'yamabuki') {            // 通体金黄
       const t2 = .26 + base * .74;
